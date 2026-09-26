@@ -1,0 +1,9 @@
+livekit-agents[google,silero]~=1.5
+python-dotenv
+psycopg[binary]
+requests
+pyyaml
+httpx
+google-genai
+fastapi
+uvicorn

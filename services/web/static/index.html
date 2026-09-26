@@ -1,0 +1,474 @@
+<!-- Emplacement exact : /volume/dst1-web/static/index.html -->
+<!-- (remplace le fichier existant — pas de rebuild necessaire, juste recharger la page navigateur) -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>DST1 — Digital Smart Technician One</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14171c;
+    --border: #232830;
+    --accent: #22d3ee;
+    --accent-2: #a78bfa;
+    --text: #e5e7eb;
+    --muted: #6b7280;
+    --error: #f87171;
+    --warning: #facc15;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 8px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .brand-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .brand-dot.live { background: var(--accent); animation: pulse 1.5s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34,211,238,0.6); }
+    70% { box-shadow: 0 0 0 8px rgba(34,211,238,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,211,238,0); }
+  }
+  .brand h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand span { color: var(--muted); font-size: 12px; }
+  .status-text { color: var(--muted); font-size: 12px; letter-spacing: 0.4px; text-transform: uppercase; text-align: right; flex-shrink: 0; white-space: nowrap; }
+
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .stage {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    padding: 24px 16px 16px;
+  }
+
+  .orb {
+    width: 140px; height: 140px; border-radius: 50%;
+    max-width: 32vw;
+    max-height: 32vw;
+    object-fit: cover;
+    box-shadow: 0 0 60px rgba(167,139,250,0.35);
+    transition: transform 0.1s ease-out, box-shadow 0.2s ease;
+    flex-shrink: 0;
+  }
+  .orb.speaking { animation: breathe 1.2s ease-in-out infinite; box-shadow: 0 0 90px rgba(34,211,238,0.5); }
+  @keyframes breathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 40px; flex-shrink: 0; }
+  .bars span { width: 4px; background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-radius: 3px; height: 6px; transition: height 0.08s ease; }
+
+  .logs-panel {
+    width: 100%;
+    max-width: 640px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .logs-header {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logs-header .clear-btn { background: none; border: none; color: var(--muted); font-size: 11px; cursor: pointer; padding: 2px 6px; text-transform: none; letter-spacing: 0; }
+  .logs-header .clear-btn:hover { color: var(--accent); }
+  .logs-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 12px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .logs-body div { white-space: pre-wrap; word-break: break-word; color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.03); padding: 2px 0; }
+  .logs-body div.log-error { color: var(--error); }
+  .logs-body div.log-warning { color: var(--warning); }
+  .logs-body div.log-tool { color: var(--accent); }
+
+  .controls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; flex-shrink: 0; padding-top: 4px; }
+  button {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.35; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #04222a; border: none; font-weight: 600; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.1); color: #04222a; }
+  button.danger:hover:not(:disabled) { border-color: #f87171; color: #f87171; }
+
+  .transcript-panel { background: var(--panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .transcript-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+  .transcript-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 90%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #04222a; border-bottom-right-radius: 4px; }
+  .msg.agent { align-self: flex-start; background: #1c2029; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg .label { display:block; font-size: 10px; opacity: 0.6; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;}
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; grid-template-rows: minmax(320px, 1fr) minmax(140px, 32vh); }
+    .stage { padding: 16px 12px 12px; gap: 12px; }
+    .orb { width: 96px; height: 96px; max-width: 26vw; max-height: 26vw; }
+    .bars { height: 30px; }
+    .logs-panel { max-width: 100%; }
+  }
+  @media (max-width: 480px) {
+    header { padding: 10px 12px; }
+    .brand h1 { font-size: 13px; }
+    .brand span { display: none; }
+    .status-text { font-size: 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+    .orb { width: 84px; height: 84px; }
+    button { padding: 10px 16px; font-size: 13px; }
+    .logs-body { font-size: 10px; }
+    .transcript-header { padding: 10px 12px; font-size: 12px; }
+    .transcript-body { padding: 10px 12px; }
+    .msg { font-size: 13px; max-width: 95%; }
+  }
+  @media (max-width: 900px) and (orientation: landscape) {
+    main { grid-template-columns: 1fr 300px; grid-template-rows: 1fr; }
+    .orb { width: 80px; height: 80px; }
+    .logs-panel { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-dot" id="liveDot"></div>
+    <div><h1>DST1 <span>· Digital Smart Technician One</span></h1></div>
+  </div>
+  <div class="status-text" id="statusText">Déconnecté</div>
+</header>
+
+<main>
+  <div class="stage">
+    <img class="orb" id="orb" src="/static/dst1-logo.jpg" alt="DST1 Logo">
+    <div class="bars" id="bars"></div>
+
+    <div class="logs-panel">
+      <div class="logs-header">
+        <span>Logs DST1 (temps réel)</span>
+        <button class="clear-btn" id="clearLogsBtn">Effacer</button>
+      </div>
+      <div class="logs-body" id="logsBody"></div>
+    </div>
+
+    <div class="controls">
+      <button id="speakerBtn">🔊 Activer HP</button>
+      <button class="primary" id="connectBtn">Se connecter</button>
+      <button class="danger" id="disconnectBtn" disabled>Déconnecter</button>
+    </div>
+  </div>
+
+  <div class="transcript-panel">
+    <div class="transcript-header">Transcript</div>
+    <div class="transcript-body" id="transcript"></div>
+  </div>
+</main>
+
+<audio id="agentAudio" autoplay></audio>
+
+<script>
+const statusText = document.getElementById('statusText');
+const liveDot = document.getElementById('liveDot');
+const orb = document.getElementById('orb');
+const barsEl = document.getElementById('bars');
+const connectBtn = document.getElementById('connectBtn');
+const disconnectBtn = document.getElementById('disconnectBtn');
+const speakerBtn = document.getElementById('speakerBtn');
+const audioEl = document.getElementById('agentAudio');
+const transcriptEl = document.getElementById('transcript');
+const logsBody = document.getElementById('logsBody');
+const clearLogsBtn = document.getElementById('clearLogsBtn');
+
+let room = null;
+let audioCtx = null;
+let useWebAudioOutput = false;
+
+const BAR_COUNT = 24;
+for (let i = 0; i < BAR_COUNT; i++) {
+  const bar = document.createElement('span');
+  barsEl.appendChild(bar);
+}
+
+// --------------------------------------------------------------
+// Transcript
+// --------------------------------------------------------------
+const segmentElements = new Map();
+
+function upsertMessage(role, text, segmentKey) {
+  if (segmentKey && segmentElements.has(segmentKey)) {
+    const existing = segmentElements.get(segmentKey);
+    const contentEl = existing.querySelector('.content');
+    if (contentEl) contentEl.textContent = text;
+  } else {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.innerHTML = `<span class="label">${role === 'user' ? 'Vous' : 'DST1'}</span><span class="content"></span>`;
+    div.querySelector('.content').textContent = text;
+    transcriptEl.appendChild(div);
+    if (segmentKey) segmentElements.set(segmentKey, div);
+  }
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+function animateBars(active) {
+  const bars = barsEl.querySelectorAll('span');
+  if (!active) { bars.forEach(b => b.style.height = '6px'); return; }
+  bars.forEach(b => { b.style.height = (6 + Math.random() * 34) + 'px'; });
+}
+let barInterval;
+
+// --------------------------------------------------------------
+// Logs temps reel (SSE)
+// --------------------------------------------------------------
+function addLogLine(text) {
+  const line = document.createElement('div');
+  line.textContent = text;
+  if (text.includes('ERROR')) line.className = 'log-error';
+  else if (text.includes('WARNING')) line.className = 'log-warning';
+  else if (text.includes('Tool call') || text.includes('Tool decouvert')) line.className = 'log-tool';
+  logsBody.appendChild(line);
+  logsBody.scrollTop = logsBody.scrollHeight;
+  while (logsBody.children.length > 300) logsBody.removeChild(logsBody.firstChild);
+}
+
+function connectLogStream() {
+  const evtSource = new EventSource('/logs/stream');
+  evtSource.onmessage = (event) => addLogLine(event.data);
+  evtSource.onerror = () => addLogLine('[Flux de logs interrompu — tentative de reconnexion automatique...]');
+}
+
+clearLogsBtn.addEventListener('click', () => { logsBody.innerHTML = ''; });
+connectLogStream();
+
+// --------------------------------------------------------------
+// Sortie haut-parleur — methode alternative via Web Audio API,
+// avec diagnostic exhaustif a chaque etape pour identifier precisement
+// ou la chaine de traitement s'interrompt.
+// --------------------------------------------------------------
+function routeTrackViaWebAudio(track) {
+  addLogLine('[DIAG] Entrée dans routeTrackViaWebAudio, état contexte=' + (audioCtx ? audioCtx.state : 'null'));
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      addLogLine('[DIAG] Nouveau AudioContext créé (état=' + audioCtx.state + ')');
+    }
+    const mediaStream = new MediaStream([track.mediaStreamTrack]);
+    addLogLine('[DIAG] MediaStream créé, nb tracks audio=' + mediaStream.getAudioTracks().length);
+    const source = audioCtx.createMediaStreamSource(mediaStream);
+    source.connect(audioCtx.destination);
+    addLogLine('[DIAG] Connexion source->destination effectuée. État final=' + audioCtx.state);
+    if (audioCtx.state === 'suspended') {
+      addLogLine('[DIAG] Contexte suspendu, tentative de relance...');
+      audioCtx.resume().then(() => addLogLine('[DIAG] Contexte relancé, nouvel état=' + audioCtx.state));
+    }
+  } catch (e) {
+    addLogLine('[DIAG] Échec routage Web Audio : ' + e.message);
+  }
+}
+
+async function activateSpeaker() {
+  addLogLine('[DIAG] Activation du mode de sortie haut-parleur...');
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    await audioCtx.resume();
+    addLogLine('[DIAG] État AudioContext après resume() : ' + audioCtx.state);
+    useWebAudioOutput = true;
+    speakerBtn.textContent = '🔊 Mode HP actif';
+    speakerBtn.disabled = true;
+    addLogLine('[DIAG] AudioContext activé. Connectez-vous maintenant pour appliquer ce mode à la voix de DST1.');
+  } catch (e) {
+    addLogLine('[DIAG] Échec activation AudioContext : ' + e.message);
+  }
+}
+
+speakerBtn.addEventListener('click', activateSpeaker);
+
+// --------------------------------------------------------------
+// Connexion LiveKit — microphone en configuration PAR DEFAUT
+// (aucune contrainte personnalisee). Version validee stable sur PC :
+// ne pas modifier ce comportement.
+// --------------------------------------------------------------
+async function connect() {
+  try {
+    if (room) {
+      await disconnect();
+    }
+
+    statusText.textContent = 'Connexion...';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error(
+        'Accès micro bloqué : sers cette page en HTTPS ou http://localhost (contexte non sécurisé détecté).'
+      );
+    }
+
+    const identity = 'user-' + Math.floor(Math.random() * 10000);
+    const roomName = 'dst1-' + Date.now();
+
+    const tokenResp = await fetch(`/token?identity=${identity}&room=${roomName}`);
+    if (!tokenResp.ok) throw new Error('Erreur API token: ' + tokenResp.status);
+    const { token, url } = await tokenResp.json();
+
+    room = new LivekitClient.Room();
+
+    const attachedTrackSids = new Set();
+
+    room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      try {
+        addLogLine('[DIAG] TrackSubscribed reçu — kind=' + track.kind + ', participant=' + participant.identity + ', useWebAudioOutput=' + useWebAudioOutput);
+
+        if (track.kind !== 'audio') {
+          addLogLine('[DIAG] Track ignoré (pas audio).');
+          return;
+        }
+        if (attachedTrackSids.has(publication.trackSid)) {
+          addLogLine('[DIAG] Track déjà traité, ignoré (trackSid=' + publication.trackSid + ')');
+          return;
+        }
+        attachedTrackSids.add(publication.trackSid);
+
+        if (useWebAudioOutput) {
+          routeTrackViaWebAudio(track);
+        } else {
+          track.attach(audioEl);
+          addLogLine('[DIAG] Track attaché via élément <audio> classique.');
+        }
+      } catch (e) {
+        addLogLine('[DIAG] Exception dans TrackSubscribed : ' + e.message);
+      }
+    });
+
+    room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      const active = speakers.length > 0;
+      orb.classList.toggle('speaking', active);
+      if (active) {
+        clearInterval(barInterval);
+        barInterval = setInterval(() => animateBars(true), 90);
+      } else {
+        clearInterval(barInterval);
+        animateBars(false);
+      }
+    });
+
+    room.registerTextStreamHandler('lk.transcription', async (reader, participantInfo) => {
+      const text = await reader.readAll();
+      if (!text || !text.trim()) return;
+
+      const localIdentity = room.localParticipant ? room.localParticipant.identity : null;
+      const role = participantInfo.identity === localIdentity ? 'user' : 'agent';
+
+      const segmentId = reader.info && reader.info.attributes
+        ? reader.info.attributes['lk.segment_id']
+        : null;
+      const segmentKey = segmentId ? `${participantInfo.identity}:${segmentId}` : null;
+
+      upsertMessage(role, text, segmentKey);
+    });
+
+    room.on(LivekitClient.RoomEvent.Disconnected, () => {
+      statusText.textContent = 'Déconnecté';
+      liveDot.classList.remove('live');
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+      clearInterval(barInterval);
+      animateBars(false);
+      attachedTrackSids.clear();
+      segmentElements.clear();
+      room = null;
+    });
+
+    await room.connect(url, token);
+    addLogLine('[DIAG] Connexion à la room établie.');
+
+    // Publication du micro avec les reglages PAR DEFAUT du navigateur.
+    await room.localParticipant.setMicrophoneEnabled(true);
+    addLogLine('[DIAG] Micro publié.');
+
+    statusText.textContent = 'En écoute — parlez à DST1';
+    liveDot.classList.add('live');
+    connectBtn.disabled = true;
+    disconnectBtn.disabled = false;
+
+  } catch (err) {
+    console.error(err);
+    statusText.textContent = 'Erreur : ' + err.message;
+    addLogLine('[DIAG] Exception dans connect() : ' + err.message);
+  }
+}
+
+async function disconnect() {
+  if (room) {
+    await room.disconnect();
+    room = null;
+  }
+}
+
+connectBtn.addEventListener('click', connect);
+disconnectBtn.addEventListener('click', disconnect);
+</script>
+</body>
+</html>
+

@@ -1,0 +1,463 @@
+{
+  "name": "WA Main Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-inbound",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -4160,
+        320
+      ],
+      "id": "5fdfd0e4-c8f0-4e30-95a1-1a0fe726fe26",
+      "name": "Réception Message WhatsApp",
+      "webhookId": "7739e33c-e8d3-4459-a1bd-9e3119bfc50c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const bodyData = $json.body?.data || {};\nconst key = bodyData.key || {};\n\nconst remoteJid = String(key.remoteJid || '');\nconst isFromMe = key.fromMe === true;\nconst source = String(bodyData.source || '').trim().toLowerCase();\n\nconst messageType = bodyData.messageType || $json.body?.messages?.records?.[0]?.messageType || '';\nconst messageText = String(\n  bodyData.message?.conversation ||\n  bodyData.message?.extendedTextMessage?.text ||\n  ''\n).trim();\n\nconst phone = remoteJid.endsWith('@s.whatsapp.net')\n  ? remoteJid.replace(/[^0-9]/g, '')\n  : '';\n\nconst isTextMessage = Boolean(messageText);\nconst isStatus = remoteJid.endsWith('@status');\n\n// Les messages ecrits manuellement depuis le telephone du compte\n// connecte a Evolution API remontent avec fromMe=true et source=android.\nconst isManualMessageFromOwner = isFromMe === true && source === 'android';\n\nreturn [{\n  json: {\n    phone,\n    remoteJid,\n    isFromMe,\n    source,\n    participant: String(key.participant || ''),\n    addressingMode: String(key.addressingMode || ''),\n    pushName: String(bodyData.pushName || ''),\n    messageType,\n    messageText,\n    isTextMessage,\n    isStatus,\n    isManualMessageFromOwner,\n    processMessage: Boolean(remoteJid) && isTextMessage && !isStatus,\n    body: $json.body\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3920,
+        320
+      ],
+      "id": "2f138b40-7939-4a88-a372-4dd350bb10f9",
+      "name": "Préparation & Normalisation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "e3dd35f4-1d86-4f0c-b79f-000000000001",
+              "leftValue": "={{ $json.processMessage }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3680,
+        320
+      ],
+      "id": "bb48a2e3-8d84-4c24-8248-8c17e2841162",
+      "name": "Message entrant exploitable ?"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "VvTklXsTyzaCUEDz",
+          "mode": "list",
+          "cachedResultName": "whatsapp_ group_name",
+          "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/VvTklXsTyzaCUEDz"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "group_name",
+              "keyValue": "MyBot DST1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -3440,
+        320
+      ],
+      "id": "a78c102a-2650-4d55-9de1-9491070499e0",
+      "name": "Résoudre groupe MyBot DST1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inbound = $('Préparation & Normalisation').first().json;\nconst rows = $input.all().map(item => item.json || {});\n\nconst groupRow = rows.find(row =>\n  String(row.group_name || '').trim() === 'MyBot DST1' &&\n  String(row.remoteJid || '').trim().endsWith('@g.us')\n);\n\nconst botGroupJid = String(groupRow?.remoteJid || '').trim();\nconst isBotGroup = Boolean(botGroupJid) && inbound.remoteJid === botGroupJid;\nconst isPrivateChat = inbound.remoteJid.endsWith('@s.whatsapp.net');\n\n// Accepte :\n// - messages d'un autre membre du groupe ;\n// - messages ecrits depuis le telephone Android du proprietaire.\n// Ignore les messages issus d'Evolution API afin d'eviter les boucles.\nconst isAllowedBotCommand = isBotGroup && (\n  inbound.isFromMe === false ||\n  inbound.isManualMessageFromOwner === true\n);\n\n// Les reponses automatiques sont reservees aux messages prives entrants.\nconst isAllowedPrivateAutoReply = isPrivateChat && inbound.isFromMe === false;\n\nlet route = 'ignore';\n\nif (isAllowedBotCommand) {\n  route = 'dst1';\n} else if (isAllowedPrivateAutoReply) {\n  route = 'auto_reply';\n}\n\nreturn [{\n  json: {\n    ...inbound,\n    botGroupJid,\n    isBotGroup,\n    isPrivateChat,\n    isAllowedBotCommand,\n    isAllowedPrivateAutoReply,\n    route\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3200,
+        320
+      ],
+      "id": "6b761e24-a476-4895-ab47-8176a607701d",
+      "name": "Déterminer le routage"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e3dd35f4-1d86-4f0c-b79f-000000000005",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "dst1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DST1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e3dd35f4-1d86-4f0c-b79f-000000000006",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "auto_reply",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Réponse auto"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -2960,
+        320
+      ],
+      "id": "09f62f46-947b-4d07-9478-6a71005003ae",
+      "name": "Router DST1 ou réponse auto"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $('Déterminer le routage').first().json.remoteJid, text: '👀 *Bien recu. J ai compris : « ' + $('Déterminer le routage').first().json.messageText + ' ». Je traite la demande.*', delay: 0 } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2720,
+        192
+      ],
+      "id": "6ea4b477-2b3e-4b8c-aa52-ddd4c3580e2a",
+      "name": "Accusé réception DST1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dst1-web:8080/text-query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { message: $('Déterminer le routage').first().json.messageText, session_id: 'whatsapp:' + $('Déterminer le routage').first().json.remoteJid + ':' + ( $('Déterminer le routage').first().json.participant || $('Déterminer le routage').first().json.phone || $('Déterminer le routage').first().json.pushName || 'unknown' ) } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2480,
+        192
+      ],
+      "id": "71464256-da7c-469e-8d73-1aa09f901d22",
+      "name": "Appeler DST1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Déterminer le routage').first().json;\n\nconst actions = Array.isArray($json.actions_effectuees)\n  ? $json.actions_effectuees\n  : [];\n\n// Cas 1 : DST1 retourne une erreur structuree, HTTP 200.\n// Cas 2 : le node HTTP n8n continue apres une erreur HTTP / reseau.\nconst endpointError = String(\n  $json.error ||\n  $json.errorMessage ||\n  $json.message ||\n  ''\n).trim();\n\nlet rawResponseText = String($json.reponse_texte || '').trim();\n\nif (endpointError && !rawResponseText) {\n  rawResponseText =\n    \"Je n'ai pas pu traiter cette demande a cause d'un probleme technique. \" +\n    \"Reessaie dans quelques instants.\";\n}\n\n// Evite que des asterisques produits par le LLM cassent le gras WhatsApp.\nconst responseText = rawResponseText.replace(/\\*/g, '').trim();\n\nconst hasToolError = Boolean(endpointError) || actions.some(action => {\n  const result = action?.resultat;\n\n  return Boolean(\n    result &&\n    typeof result === 'object' &&\n    (result.error || result.success === false)\n  );\n});\n\nconst hasSuccessfulToolAction = actions.some(action => {\n  const result = action?.resultat;\n\n  return Boolean(\n    result &&\n    typeof result === 'object' &&\n    result.success === true\n  );\n});\n\nconst normalizedText = responseText.toLowerCase();\n\n// Version volontairement sur une seule regex, sans flag /x :\n// compatible avec le JavaScript execute par le node Code n8n.\nconst isClarification = !hasToolError && (\n  responseText.endsWith('?') ||\n  /\\b(pour quel|pour quelle|quel contact|quelle personne|quel numero|quelle date|quelle heure|peux-tu preciser|peux tu preciser|j ai besoin de|il me faut|de quel|duquel|laquelle)\\b/.test(normalizedText)\n);\n\nlet icon = '🤖';\nlet responseType = 'information';\n\nif (hasToolError) {\n  icon = '❌';\n  responseType = 'echec';\n} else if (isClarification) {\n  icon = '❓';\n  responseType = 'clarification';\n} else if (hasSuccessfulToolAction) {\n  icon = '✅';\n  responseType = 'succes';\n}\n\nconst formattedResponseText = responseText\n  ? `${icon} *${responseText}*`\n  : '❌ *DST1 n a renvoye aucune reponse exploitable.*';\n\nreturn [{\n  json: {\n    recipient: request.remoteJid,\n    responseText,\n    formattedResponseText,\n    responseIcon: icon,\n    responseType,\n    shouldReply: true,\n    sessionId: String($json.session_id || ''),\n    endpointError: endpointError || null,\n    actionsCount: actions.length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        192
+      ],
+      "id": "7b3dd7ff-8fd1-48cc-8a24-d817a462aff9",
+      "name": "Préparer réponse DST1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "e3dd35f4-1d86-4f0c-b79f-000000000011",
+              "leftValue": "={{ $json.shouldReply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        192
+      ],
+      "id": "2cff4e33-59a7-4485-b0a0-86e05d8b1f55",
+      "name": "Réponse DST1 présente ?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.recipient, text: $json.formattedResponseText, delay: 0 } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1760,
+        192
+      ],
+      "id": "a8774cbd-35d4-417f-b94e-e3eea93f35aa",
+      "name": "Répondre dans MyBot DST1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "uMGLIKxYe0YrVvwH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/uMGLIKxYe0YrVvwH",
+          "cachedResultName": "Sub-Agent WA IA Reply User"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        -2720,
+        448
+      ],
+      "id": "85f290b8-d0f6-40b8-9c06-7337515dfeb7",
+      "name": "Sous-WF - Réponse automatique utilisateur"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Réception Message WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Préparation & Normalisation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparation & Normalisation": {
+      "main": [
+        [
+          {
+            "node": "Message entrant exploitable ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message entrant exploitable ?": {
+      "main": [
+        [
+          {
+            "node": "Résoudre groupe MyBot DST1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résoudre groupe MyBot DST1": {
+      "main": [
+        [
+          {
+            "node": "Déterminer le routage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Déterminer le routage": {
+      "main": [
+        [
+          {
+            "node": "Router DST1 ou réponse auto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router DST1 ou réponse auto": {
+      "main": [
+        [
+          {
+            "node": "Accusé réception DST1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sous-WF - Réponse automatique utilisateur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accusé réception DST1": {
+      "main": [
+        [
+          {
+            "node": "Appeler DST1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appeler DST1": {
+      "main": [
+        [
+          {
+            "node": "Préparer réponse DST1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer réponse DST1": {
+      "main": [
+        [
+          {
+            "node": "Réponse DST1 présente ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse DST1 présente ?": {
+      "main": [
+        [
+          {
+            "node": "Répondre dans MyBot DST1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "946810c8-64ad-485e-9cbd-ff3425dfe14a",
+  "meta": {
+    "instanceId": "f14f286ca435d1fa3b9d8041e8f06aa0af7ab28ea8edcd7e11fd485a100b632b"
+  },
+  "nodeGroups": [],
+  "id": "spOoFSuswqURgCUp",
+  "tags": []
+}

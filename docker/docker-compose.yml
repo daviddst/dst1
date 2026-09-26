@@ -1,0 +1,723 @@
+#version: "2.1"
+
+services:
+
+  reverseproxy:
+    container_name: reverseproxy
+    hostname: reverseproxy
+    build: build/reverseproxy
+    volumes:
+      - /volume/reverseproxy/apache2/conf:/usr/local/apache2/conf
+      - /volume/reverseproxy/apache2/logs:/usr/local/apache2/logs
+      - /volume/reverseproxy/apache2/htdocs:/usr/local/apache2/htdocs
+      - /volume/reverseproxy/apache2/cgi-bin:/usr/local/apache2/cgi-bin
+      - /volume/reverseproxy/scripts:/etc/scripts
+      - /volume/reverseproxy/letsencrypt:/etc/letsencrypt
+    ports:
+      #- 8080:80
+      - 80:80
+      - 443:443
+    environment:
+      - TZ=Europe/Paris
+    restart: unless-stopped
+
+  postfix:
+    container_name: postfix
+    hostname: postfix
+    build: build/postfix
+    volumes:
+      - /volume/postfix/etc:/etc/postfix
+      #- /volume/postfix/config/main.cf:/etc/postfix/main.cf
+      #- /volume/postfix/config/master.cf:/etc/postfix/master.cf
+      #- /volume/postfix/config/canonical:/etc/postfix/canonical
+      #- /volume/postfix/config/header_checks:/etc/postfix/header_checks
+      - /volume/postfix/opendkim:/etc/opendkim
+      - /volume/postfix/spool:/var/spool/mail
+      #- /volume/postfix/opendkim.conf:/etc/opendkim.conf
+       
+    ports:
+      - 25:25000
+    environment:
+      - TZ=Europe/Paris
+    restart: unless-stopped
+
+
+  homeassistant:
+    container_name: homeassistant
+    hostname: homeassistant
+    #image: homeassistant/home-assistant:stable
+    image: ghcr.io/home-assistant/home-assistant:stable
+    volumes:
+      - /volume/homeassistant/config:/config
+      #- /dev/zigbee:/dev/zigbee
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+      - PGID=1000
+    restart: unless-stopped
+    network_mode: host
+
+  matter-hub:
+    image: ghcr.io/t0bst4r/home-assistant-matter-hub:latest
+    container_name: matter-hub
+    restart: unless-stopped
+    network_mode: host
+    environment: # more options can be found in the configuration section
+      - HAMH_HOME_ASSISTANT_URL=http://10.42.42.10:8123/
+      - HAMH_HOME_ASSISTANT_ACCESS_TOKEN=${HAMH_HOME_ASSISTANT_ACCESS_TOKEN}
+      - HAMH_LOG_LEVEL=info
+      - HAMH_HTTP_PORT=8482
+    volumes:
+      - /volume/matter-hub/data:/data
+
+  zwavejs2mqtt:
+    container_name: zwavejs2mqtt
+    hostname: zwavejs2mqtt
+    image: zwavejs/zwavejs2mqtt
+    restart: always
+    tty: true
+    stop_signal: SIGINT
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - ZWAVEJS_EXTERNAL_CONFIG=/usr/src/app/store/.config-db
+      # Uncomment if you want log times and dates to match your timezone instead of UTC
+      # Available at https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      - TZ=Europe/Paris
+    devices:
+      # Do not use /dev/ttyUSBX serial devices, as those mappings can change over time.
+      # Instead, use the /dev/serial/by-id/X serial device for your Z-Wave stick.
+      # ls -l /dev/serial/by-id
+      #- /dev/serial/by-id/usb-0658_0200-if00:/dev/zwave
+      #- /dev/ttyACM0:/dev/zwave
+      - /dev/zwave:/dev/zwave
+    volumes:
+      - /volume/zwavejs2mqtt:/usr/src/app/store
+    ports:
+      - "8091:8091" # port for web interface
+      - "3000:3000" # port for Z-Wave JS websocket server
+
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto
+    restart: always
+    volumes:
+      - /volume/mosquitto/config:/mosquitto/config
+      - /volume/mosquitto/log:/mosquitto/log
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+      - PGID=1000
+    ports:
+      - 1883:1883 
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt
+    container_name: zigbee2mqtt
+    network_mode: host
+    depends_on:
+      - mosquitto
+    volumes:
+      - /volume/zigbee2mqtt/data:/app/data
+    tty: true
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+      - PGID=1000
+    restart: unless-stopped
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    #image: plexinc/pms-docker
+    hostname: plex
+    container_name: plex
+    network_mode: host
+    group_add:
+      - "44"
+      - "993"
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1000
+      - PGID=1000
+      - VERSION=docker
+      - PLEX_CLAIM= #optional
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - /dev/shm:/transcode
+      - /volume/plex/config:/config
+      - /etc/scripts/plex:/etc/scripts
+      - /volume/plex/profiles:/usr/lib/plexmediaserver/Resources/Profiles
+      - mnt-video:/mnt/video
+#    ports:
+#      - 32400:32400
+    restart: unless-stopped
+
+#  tools:
+#    build: build/tools
+#    container_name: tools
+#    volumes:
+#      - mnt-video:/mnt/video
+#      - mnt-download:/mnt/download
+#      - /volume/tools/scripts:/etc/scripts
+#      - /volume/joal/torrents:/mnt/torrent-torr9
+#      - /volume/joal2/torrents:/mnt/torrent-c411
+#    working_dir: /mnt/video
+#    entrypoint: ["/bin/bash"]
+#    tty: true
+#    environment:
+#      - TZ=Europe/Paris
+#      - PUID=1000
+#      - PGID=1000
+
+  sonarr:
+    container_name: sonarr
+    hostname: sonarr
+    image: linuxserver/sonarr:latest
+    volumes:
+      - /volume/sonarr/config:/config
+      - mnt-download:/mnt/download
+      #- /mnt/download/qbittorrent-dl:/mnt/download
+      - mnt-video:/mnt/video
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1048
+      - PGID=100
+    ports:
+      - 8989:8989
+
+  radarr:
+    container_name: radarr
+    hostname: radarr
+    image: linuxserver/radarr:latest
+    volumes:
+      - /volume/radarr/config:/config
+      - mnt-download:/mnt/download
+      #- /mnt/download/qbittorrent-dl:/mnt/download
+      - mnt-video:/mnt/video
+    ports:
+      - 7878:7878
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1048
+      - PGID=100
+
+  prowlarr:
+    container_name: prowlarr
+    hostname: prowlarr
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment:
+      - TZ=Europe/Paris
+      - PUID=1048
+      - PGID=100
+    volumes:
+      - /volume/prowlarr/config:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+
+  seerr:
+    #image: lscr.io/linuxserver/overseerr:latest
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: seerr
+    hostname: seerr
+    environment:
+      - LOG_LEVEL=debug
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - /volume/seerr/config:/app/config
+    ports:
+      - 5055:5055
+    restart: unless-stopped
+
+
+
+  sqlitebrowser:
+    image: lscr.io/linuxserver/sqlitebrowser:latest
+    container_name: sqlitebrowser
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+    volumes:
+      - /volume/sqlitebrowser/config:/config
+      - /volume/plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases:/db/plex
+      - /volume/radarr/config:/db/radarr
+      - /volume/sonarr/config:/db/sonarr
+      - /volume/overseerr/config/db:/db/overseerr
+      - /volume/tautulli:/db/tautulli
+    ports:
+      - 5000:3000
+      - 5001:3001
+    restart: unless-stopped
+
+
+
+  # sur l'hote: lxc-device add -n 100 /dev/usb/hiddev0
+  apcupsd:
+    image: bnhf/apcupsd
+    container_name: apcupsd
+    hostname:  apcupsd # Use a unique hostname here for each apcupsd instance, and it'll be used instead of the container number in apcupsd-cgi and e-mail notifications. 
+    devices:
+      - /dev/usb/hiddev0 # This device needs to match what the APC UPS on your APCUPSD_MASTER system uses -- Comment out this section on APCUPSD_SLAVES
+    ports:
+      - 3551:3551
+    volumes:
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket # Required to support host shutdown from the container
+      - /volume/apcupsd:/etc/apcupsd # /etc/apcupsd can be bound to a directory or a docker volume
+    environment:
+      - UPSNAME=UPS # This value will display in apcupsd-cgi details.
+      - TZ=Europe/Paris
+    restart: unless-stopped
+
+  joal:
+    image: anthonyraymond/joal:latest
+    container_name: joal
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+    volumes:
+      - /volume/joal:/data
+      #- mnt-joal-torrents:/data/torrents
+    command: 
+      - "--joal-conf=/data"
+      - "--spring.main.web-environment=true"
+      - "--server.port=1234"
+      - "--joal.ui.path.prefix=joal"
+      - "--joal.ui.secret-token=Password123"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+
+  joal2:
+    image: anthonyraymond/joal:latest
+    container_name: joal2
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+    volumes:
+      - /volume/joal2:/data
+#      - mnt-joal-torrents:/data/torrents
+    command: 
+      - "--joal-conf=/data"
+      - "--spring.main.web-environment=true"
+      - "--server.port=1235"
+      - "--joal.ui.path.prefix=joal"
+      - "--joal.ui.secret-token=Password123"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Paris
+
+  qbittorrent-dl:
+    container_name: 'qbittorrent-dl'
+    network_mode: "service:gluetun"
+    #depends_on:
+    #  - gluetun
+    depends_on:
+      gluetun:
+        condition: service_healthy
+
+    image: lscr.io/linuxserver/qbittorrent:latest
+    environment:
+      - PUID=1048
+      - PGID=1000
+      - TZ=Europe/Paris
+      - WEBUI_PORT=9090
+      - TORRENTING_PORT=9610
+    volumes:
+      - /volume/qbittorrent-dl/config:/config
+      - mnt-video:/mnt/video
+      - mnt-download:/mnt/download
+      #- /mnt/download/qbittorrent-dl:/mnt/download
+    restart: unless-stopped
+
+  qbittorrent-seed:
+    container_name: 'qbittorrent-seed'
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    image: lscr.io/linuxserver/qbittorrent:latest
+    environment:
+      - PUID=1048
+      - PGID=1000
+      - TZ=Europe/Paris
+      - WEBUI_PORT=9091
+      - TORRENTING_PORT=9611
+    volumes:
+      - /volume/qbittorrent-seed/config:/config
+      - mnt-video:/mnt/video
+      - mnt-download:/mnt/download
+      #- /mnt/download/qbittorrent-seed:/mnt/download
+    restart: unless-stopped
+
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - TZ=Europe/Paris
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=openvpn
+      - OPENVPN_CUSTOM_CONFIG=/gluetun/airvpn.ovpn
+      - FIREWALL_VPN_INPUT_PORTS="9610,9611,15275"
+      - BLOCK_MALICIOUS=off
+      - BLOCK_SURVEILLANCE=off
+      - BLOCK_ADS=off
+    volumes:
+      - /volume/gluetun:/gluetun
+    ports:
+      - 1234:1234
+      - 1235:1235
+      - 15275:49152
+      - 9090:9090
+      - 9091:9091
+      - 9610:9610
+      - 9610:9610/udp
+      - 9611:9611
+      - 9611:9611/udp
+    restart: unless-stopped
+
+  tracearr:
+    image: ghcr.io/connorgallopo/tracearr:latest
+    container_name: tracearr
+    ports:
+      - "9000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - TZ=Europe/Paris
+      - DATABASE_URL=postgres://tracearr:${ea239e26a0cf59c4d86b962663a5140a470ee8c4bdcdabc6aed43c7f1b441e28:-tracearr}@tracearr-db:5432/tracearr
+      - REDIS_URL=redis://tracearr-redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      # - DATABASE_POOL_MAX=50  # Database connection pool size (default: 50)
+    depends_on:
+      tracearr-db:
+        condition: service_healthy
+      tracearr-redis:
+        condition: service_healthy
+    volumes:
+      - /volume/tracearr/backup:/data/backup
+    restart: unless-stopped
+
+  tracearr-db:
+    # TimescaleDB HA with PostgreSQL 18 - pinned for stability
+    image: timescale/timescaledb-ha:pg18.1-ts2.25.0
+    container_name: tracearr-db
+    shm_size: 512mb  # Required for PostgreSQL shared memory (increase for large imports)
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536  # TimescaleDB chunks require many file descriptors
+    # Allow unlimited tuple decompression for migrations on compressed hypertables
+    # Increase lock table size for large imports (Tautulli imports with many TimescaleDB chunks)
+    command: postgres -c timescaledb.license=timescale -c timescaledb.max_tuples_decompressed_per_dml_transaction=0 -c max_locks_per_transaction=4096 -c timescaledb.telemetry_level=off
+    environment:
+      - POSTGRES_USER=tracearr
+      - POSTGRES_PASSWORD=${ea239e26a0cf59c4d86b962663a5140a470ee8c4bdcdabc6aed43c7f1b441e28:-tracearr}
+      - POSTGRES_DB=tracearr
+    volumes:
+      - /volume/tracearr-db/data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracearr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  tracearr-redis:
+    image: redis:8-alpine
+    container_name: tracearr-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - /volume/tracearr-redis/data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  autobrr:
+    container_name: autobrr
+    image: ghcr.io/autobrr/autobrr:latest
+    restart: unless-stopped
+    user: 1000:1000
+    volumes:
+      - /volume/autobrr/config:/config
+    ports:
+      - 7474:7474
+
+#  unifi-db:
+#    image: docker.io/mongo:4.4
+#    container_name: unifi-db
+#    environment:
+#      - MONGO_INITDB_ROOT_USERNAME=root
+#      - MONGO_INITDB_ROOT_PASSWORD=Password456!
+#      - MONGO_USER=unifi
+#      - MONGO_PASS=Password123!
+#      - MONGO_DBNAME=unifi
+#      - MONGO_AUTHSOURCE=admin
+#    volumes:
+#      - /volume/unifi-db/data:/data/db
+#      - /volume/unifi-db/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+#    restart: unless-stopped
+
+#  unifi-network-application:
+#    image: lscr.io/linuxserver/unifi-network-application:latest
+#    container_name: unifi-network-application
+#    network_mode: host
+#    environment:
+#      - PUID=1000
+#      - PGID=1000
+#      - TZ=Europe/Paris
+#      - MONGO_USER=unifi
+#      - MONGO_PASS=Password123!
+#      - MONGO_HOST=unifi-db
+#      - MONGO_PORT=27017
+#      - MONGO_DBNAME=unifi
+#      - MONGO_AUTHSOURCE=admin
+#      - MEM_LIMIT=1024 #optional
+#      - MEM_STARTUP=1024 #optional
+#      - MONGO_TLS= #optional
+#    volumes:
+#      - /volume/unifi-network-application/data:/config
+#    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    hostname: ollama
+    restart: unless-stopped
+    ports:
+      - 11434:11434
+    volumes:
+      - /volume/ollama/models:/root/.ollama
+
+
+  dst1-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: dst1-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DST1_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${DST1_POSTGRES_PASSWORD}
+      POSTGRES_MULTIPLE_DATABASES: ${DST1_POSTGRES_MULTIPLE_DATABASES}
+    ports:
+      - "5432:5432"
+    volumes:
+      - /volume/dst1-postgres:/var/lib/postgresql/data
+      - /etc/docker/build/dst1-postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DST1_POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dst1-n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: dst1-n8n
+    restart: unless-stopped
+    depends_on:
+      dst1-postgres:
+        condition: service_healthy
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_LOG_LEVEL=debug
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false
+#      - DB_TYPE=postgresdb
+#      - DB_POSTGRESDB_HOST=${DST1_DB_POSTGRESDB_HOST}
+#      - DB_POSTGRESDB_PORT=5432
+#      - DB_POSTGRESDB_DATABASE=n8n
+#      - DB_POSTGRESDB_USER=${DST1_POSTGRES_USER}
+#      - DB_POSTGRESDB_PASSWORD=${DST1_POSTGRES_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+#      - N8N_RUNNERS_ENABLED=true
+      - N8N_RESTRICT_FILE_ACCESS_TO=/mnt
+
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+#      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_WEBHOOK_URL=${WEBHOOK_URL}
+      - WHISPER_BASEURL=${WHISPER_BASEURL}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - EVOLUTION_BASEURL=${EVOLUTION_BASEURL}
+      - EVOLUTION_INSTANCE=${EVOLUTION_INSTANCE}
+      - WA_GROUP_BOT_HOME=${WA_GROUP_BOT_HOME}
+      - WA_GROUP_BOT_DAVID=${WA_GROUP_BOT_DAVID}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - N8N_API_BASE=${N8N_API_BASE}
+      - N8N_API_KEY=${N8N_API_KEY}
+
+    volumes:
+      - /volume/dst1-n8n/data:/home/node/.n8n
+      - /volume/dst1-n8n/share:/mnt/share
+
+  dst1-agent:
+    build:
+      context: /etc/docker/build/dst1-agent
+    container_name: dst1-agent
+    restart: unless-stopped
+    depends_on:
+      - dst1-postgres
+      - dst1-n8n
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - POSTGRES_DSN=postgresql://${DST1_POSTGRES_USER}:${DST1_POSTGRES_PASSWORD}@${DST1_DB_POSTGRESDB_HOST}:5432/dst1_agent
+
+      # --- Agent DST1 ---
+      - AGENT_NAME=${AGENT_NAME}
+      #- N8N_WEBHOOK_BASE=http://dst1-n8n:5678/webhook
+      - AGENT_CONFIG_PATH=/app/agent_config.yaml
+      #- TOOLS_CONFIG_PATH=/app/tools.yaml
+      - N8N_WEBHOOK_BASE=${N8N_WEBHOOK_BASE}
+      - N8N_API_KEY=${N8N_API_KEY}
+      - N8N_API_BASE=${N8N_API_BASE}
+      - DST1_TOOL_TAG=${DST1_TOOL_TAG}
+      - DST1_AGENT_TEXT_URL=http://dst1-agent:8090
+ 
+    volumes:
+      - /volume/dst1-agent:/app
+      - /volume/dst1-logs:/app/logs
+
+  dst1-web:
+    build:
+      context: /etc/docker/build/dst1-web
+    container_name: dst1-web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - AGENT_NAME=${AGENT_NAME}
+    volumes:
+      - /volume/dst1-web:/app
+      - /volume/dst1-logs:/app/logs:ro
+
+#  n8n:
+#    image: n8nio/n8n:latest
+#    container_name: n8n
+#    hostname: n8n
+#    restart: unless-stopped
+#    ports:
+#      - 5679:5678
+#    environment:
+#      - N8N_HOST=n8n
+#      - N8N_PORT=5678
+#      - N8N_PROTOCOL=http
+#      - GENERIC_TIMEZONE=Europe/Paris
+#      - TZ=Europe/Paris
+#      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+#      - N8N_USER_MANAGEMENT_DISABLED=true
+#      - N8N_SECURE_COOKIE=false
+#      #- N8N_ALLOW_LIST_PATH=/mnt
+#      - N8N_RESTRICT_FILE_ACCESS_TO=/mnt
+#      - WEBHOOK_URL=${WEBHOOK_URL}
+
+#      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+#      - WHISPER_BASEURL=${WHISPER_BASEURL}
+#      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+#      - EVOLUTION_BASEURL=${EVOLUTION_BASEURL}
+#      - EVOLUTION_INSTANCE=EVOLUTION_INSTANCE}
+#      - WA_GROUP_BOT_HOME=${WA_GROUP_BOT_HOME}
+#      - WA_GROUP_BOT_DAVID=${WA_GROUP_BOT_DAVID}
+
+#    volumes:
+#      - /volume/n8n/data:/home/node/.n8n
+#      - /volume/n8n/share:/mnt/share
+
+  evolution-postgres:
+    image: postgres:15-alpine
+    container_name: evolution-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${EVOLUTION_POSTGRES_USER} 
+      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${EVOLUTION_POSTGRES_DB}
+    volumes:
+      - /volume/evolution-postgres:/var/lib/postgresql/data
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest 
+    container_name: evolution-api
+    restart: always
+    ports:
+      - "8089:8080"
+    depends_on:
+      - evolution-postgres
+    environment:
+      - SERVER_URL=${EVOLUTION_BASEURL}
+      - AUTHENTICATION_TYPE=apikey
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      # Configuration de la base de données (hôte mis à jour vers evolution-postgres)
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${EVOLUTION_POSTGRES_USER}:${EVOLUTION_POSTGRES_PASSWORD}@evolution-postgres:5432/${EVOLUTION_POSTGRES_DB}?schema=public
+      - DATABASE_CONNECTION_CLIENT_NAME=${EVOLUTION_POSTGRES_DB}
+      - CACHE_REDIS_ENABLED=false
+
+      - CONFIG_SESSION_PHONE_CLIENT_NAME=Evolution
+      - WEBHOOK_GLOBAL_ENABLED=true
+      # Activer la GUI intégrée :
+      - EXPOSE_INBUILT_WEB_PANEL=true
+
+  whatsapp-redis:
+    image: redis:alpine
+    container_name: whatsapp-redis
+    restart: always
+    ports:
+      - "63790:6379"
+    volumes:
+      - /volume/whatsapp-redis/data:/data
+
+  whisper:
+    image: fedirz/faster-whisper-server:latest-cpu
+    container_name: whisper
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - WHISPER_MODEL=base   # Modèles dispos : tiny, base, small, medium, large-v3
+      - WHISPER_DEVICE=cpu   # Remplacez par "cuda" si vous utilisez un GPU Nvidia
+
+volumes:
+  mnt-video:
+    driver_opts:
+      type: "nfs"
+      o: "addr=10.42.42.1,nolock,soft,rw"
+      device: ":/volume1/video"
+  mnt-download:
+    driver_opts:
+      type: "nfs"
+      o: "addr=10.42.42.1,nolock,soft,rw"
+      device: ":/volume1/download"
+
+  mnt-joal-torrents:
+    driver_opts:
+      type: "nfs"
+      o: "addr=10.42.42.1,nolock,soft,rw"
+      device: ":/volume1/download/qbittorrent/torrents"
