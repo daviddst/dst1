@@ -4,6 +4,6 @@ psycopg[binary]
 requests
 pyyaml
 httpx
-google-genai
+google-generativeai
 fastapi
 uvicorn

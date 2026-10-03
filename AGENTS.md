@@ -47,3 +47,43 @@ Une validation humaine explicite est requise pour :
   de bootstrap d'image.
 - Avant toute modification, vérifier si le code est injecté par volume ou copié
   dans l'image par le Dockerfile.
+
+## Exécution sur le serveur via VS Code Remote Tunnels
+
+Le dépôt de travail est ouvert dans VS Code depuis le serveur :
+
+`/srv/dst1/app`
+
+L’agent IA peut utiliser sans validation supplémentaire :
+
+- `make validate`
+- `make diagnose`
+- `make logs SERVICE=dst1-agent`
+- `make logs SERVICE=dst1-web`
+- `make logs SERVICE=dst1-n8n`
+- `git status`
+- `git diff`
+
+Les commandes suivantes exigent une validation explicite de l’utilisateur,
+obtenue dans la conversation immédiatement avant leur exécution :
+
+- `make deploy-agent`
+- `make deploy-web`
+- toute commande Docker non prévue par les scripts ;
+- toute synchronisation vers `/volume` ;
+- toute modification de `/etc/docker/docker-compose.yml` ;
+- import de workflow n8n ;
+- action externe réelle.
+
+Avant un déploiement, toujours présenter :
+1. les fichiers modifiés ;
+2. le diff Git ;
+3. le composant concerné ;
+4. les tests prévus ;
+5. la procédure de rollback.
+
+Après un déploiement :
+1. vérifier le health check ;
+2. afficher les logs du service concerné ;
+3. résumer le résultat ;
+4. proposer le rollback en cas d'échec.

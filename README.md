@@ -1,42 +1,44 @@
 # DST1 - Digital Smart Technician One
 
-Depot source et documentation de DST1.
+Dépôt source et documentation du système DST1. Dans l’environnement serveur
+actuel, le dépôt se trouve dans `/srv/dst1/app`; le runtime Docker est piloté
+séparément depuis `/etc/docker` et conserve son état sous `/volume`.
 
 ## Composants
 
-- Agent Python LiveKit et Gemini
-- Facade Web FastAPI
-- n8n pour workflows et outils
-- PostgreSQL avec pgvector
-- Evolution API et WhatsApp
-- Redis
-- Whisper
+- `services/agent/` : agent LiveKit/Gemini et endpoint texte interne.
+- `services/web/` : façade FastAPI, interface Web et relais vers l’agent.
+- `docker/` : Compose et définitions de build versionnées.
+- `n8n/` : exports de workflows nettoyés et catalogue des tools.
+- `docs/` et `scripts/` : procédures, architecture et contrôles.
 
-## Ce qui est versionne
+Le Compose courant configure séparément `dst1-postgres` et `dst1-n8n`. Les
+paramètres PostgreSQL de n8n y sont commentés : sauf configuration runtime
+différente, n8n utilise donc son stockage SQLite persistant dans son volume.
+Voir [l’architecture](docs/architecture.md) avant toute migration de base.
 
-- Sources applicatives
-- Docker Compose et Dockerfiles apres audit
-- Configurations non secretes
-- Documentation et scripts
-- Exports JSON n8n nettoyes
+## Validation locale
 
-## Ce qui est exclu
+Depuis la racine du dépôt :
 
-- Fichiers env reels
-- Mots de passe, tokens et cles API
-- Volumes Docker
-- Bases de donnees
-- Credentials et executions n8n
-- Logs, caches, sauvegardes et conversations
+    bash scripts/validate.sh
+    bash scripts/manual-copy-checklist.sh
+    git status --short
 
-## Demarrage
+Le Makefile courant n’a pas de recette `validate` ni `checklist` : la commande
+`make validate` peut réussir sans rien valider. Les cibles `diagnose`, `logs`,
+`deploy-agent` et `deploy-web` sont définies ; les cibles de déploiement
+synchronisent les fichiers et redémarrent des services.
 
-Lancer les commandes suivantes :
+## Données et déploiement
 
-    cd /Users/david/Projets/DST1
-    make checklist
-    make validate
-    git status
+Les exports n8n de ce dépôt sont des snapshots, pas une synchronisation
+automatique de l’instance. Les credentials, bases, exécutions et logs restent
+dans les volumes runtime et ne doivent pas être copiés dans Git. Toute
+activation/import n8n, synchronisation serveur ou redémarrage nécessite une
+validation humaine explicite. Voir le [runbook](docs/runbook.md) et les
+[conventions n8n](docs/n8n-workflow-convention.md).
 
-Les fichiers avec extension A_COPIER sont une checklist de copie manuelle
-depuis le serveur. Aucun fichier serveur n est copie automatiquement.
+Ne jamais versionner de secrets, fichiers `.env` réels, données personnelles,
+exports bruts de runtime, bases, logs ou sauvegardes. Voir les [notes de
+sécurité](docs/security-notes.md) pour les risques connus et les priorités.

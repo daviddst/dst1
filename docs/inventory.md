@@ -1,26 +1,34 @@
 # Inventaire DST1
 
-## Sources a copier manuellement
+## Sources versionnées
 
-- /etc/docker/docker-compose.yml
-- /volume/dst1-agent/agent.py
-- /volume/dst1-agent/agent_config.yaml
-- /volume/dst1-agent/tool_loader.py
-- /volume/dst1-agent/text_endpoint.py
-- /volume/dst1-web/server.py
-- /volume/dst1-web/static/index.html
+- `services/agent/` : code agent, endpoint texte, loader et configuration.
+- `services/web/` : façade FastAPI et ressources statiques.
+- `docker/docker-compose.yml` : définition d’orchestration du dépôt.
+- `docker/build/` : Dockerfiles, dépendances et initialisation PostgreSQL.
+- `n8n/workflows/` : exports JSON de workflows, à traiter comme snapshots.
+- `n8n/tool-catalog/`, `docs/` et `scripts/` : documentation et procédures.
 
-## Sources a auditer avant copie
+## Cibles runtime
 
-- /etc/docker/build
+- `services/agent/` -> `/volume/dst1-agent/`.
+- `services/web/` -> `/volume/dst1-web/`.
+- Compose -> `/etc/docker/docker-compose.yml`.
+- Définitions de build -> `/etc/docker/build/`.
+- Workflows -> import explicite dans n8n ; pas de copie vers son volume.
 
-## Ne jamais copier directement
+Les scripts de déploiement ne sont pas équivalents : `scripts/deploy/deploy.sh`
+recopie un répertoire complet avec `rsync --delete`. Examiner le diff et les
+fichiers runtime additionnels avant toute utilisation.
 
-- /volume/dst1-n8n
-- /volume/dst1-postgres
-- /volume/dst1-logs
-- /volume/evolution-postgres
-- /volume/whatsapp-redis
+## Données runtime à ne pas copier ni versionner
 
-Ces emplacements contiennent de l etat runtime, des credentials, des logs,
-des donnees de bases, des caches ou des donnees potentiellement sensibles.
+- `/volume/dst1-n8n/` : état n8n, credentials et données d’exécution.
+- `/volume/dst1-postgres/` et `/volume/evolution-postgres/` : bases de données.
+- `/volume/dst1-logs/` : logs pouvant contenir arguments, résultats ou données
+	personnelles.
+- `/volume/whatsapp-redis/` : état Redis.
+- Autres volumes de services : configuration, cache, médias ou données privées.
+
+Ne jamais lire, synchroniser, exporter vers Git ou supprimer ces données sans
+procédure et autorisation spécifiques.

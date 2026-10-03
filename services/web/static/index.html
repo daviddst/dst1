@@ -1,4 +1,4 @@
-<!-- Emplacement exact : /volume/dst1-web/static/index.html -->
+<!-- mplacement exact : /volume/dst1-web/static/index.html -->
 <!-- (remplace le fichier existant — pas de rebuild necessaire, juste recharger la page navigateur) -->
 <!DOCTYPE html>
 <html lang="fr">
@@ -152,6 +152,12 @@
   button.primary:hover:not(:disabled) { filter: brightness(1.1); color: #04222a; }
   button.danger:hover:not(:disabled) { border-color: #f87171; color: #f87171; }
 
+  .audio-output { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; width: 100%; }
+  .audio-output label { color: var(--muted); font-size: 12px; }
+  .audio-output select { max-width: min(100%, 320px); min-width: 180px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; }
+  .audio-output select:disabled { opacity: 0.65; }
+  .audio-help { width: 100%; min-height: 1.4em; color: var(--muted); font-size: 12px; text-align: center; }
+
   .transcript-panel { background: var(--panel); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .transcript-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
   .transcript-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -213,7 +219,13 @@
     </div>
 
     <div class="controls">
-      <button id="speakerBtn">🔊 Activer HP</button>
+      <div class="audio-output">
+        <label for="audioOutputSelect">Sortie audio</label>
+        <select id="audioOutputSelect" aria-describedby="audioHelp">
+          <option value="">Sortie système (haut-parleur / oreillette)</option>
+        </select>
+        <div class="audio-help" id="audioHelp" role="status" aria-live="polite"></div>
+      </div>
       <button class="primary" id="connectBtn">Se connecter</button>
       <button class="danger" id="disconnectBtn" disabled>Déconnecter</button>
     </div>
@@ -234,15 +246,24 @@ const orb = document.getElementById('orb');
 const barsEl = document.getElementById('bars');
 const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
-const speakerBtn = document.getElementById('speakerBtn');
+const audioOutputSelect = document.getElementById('audioOutputSelect');
+const audioHelp = document.getElementById('audioHelp');
 const audioEl = document.getElementById('agentAudio');
 const transcriptEl = document.getElementById('transcript');
 const logsBody = document.getElementById('logsBody');
 const clearLogsBtn = document.getElementById('clearLogsBtn');
 
 let room = null;
-let audioCtx = null;
-let useWebAudioOutput = false;
+const savedAudioOutput = (() => {
+  try { return localStorage.getItem('dst1-audio-output') || ''; }
+  catch (_) { return ''; }
+})();
+
+audioEl.autoplay = true;
+audioEl.playsInline = true;
+audioEl.setAttribute('playsinline', '');
+audioEl.volume = 1;
+audioEl.muted = false;
 
 const BAR_COUNT = 24;
 for (let i = 0; i < BAR_COUNT; i++) {
@@ -302,49 +323,75 @@ clearLogsBtn.addEventListener('click', () => { logsBody.innerHTML = ''; });
 connectLogStream();
 
 // --------------------------------------------------------------
-// Sortie haut-parleur — methode alternative via Web Audio API,
-// avec diagnostic exhaustif a chaque etape pour identifier precisement
-// ou la chaine de traitement s'interrompt.
+// Sortie audio : garder le track WebRTC sur un element natif.
+// setSinkId est optionnel et n'est pas expose par tous les mobiles.
 // --------------------------------------------------------------
-function routeTrackViaWebAudio(track) {
-  addLogLine('[DIAG] Entrée dans routeTrackViaWebAudio, état contexte=' + (audioCtx ? audioCtx.state : 'null'));
+function supportsOutputSelection() {
+  return typeof audioEl.setSinkId === 'function'
+    && Boolean(navigator.mediaDevices?.enumerateDevices);
+}
+
+async function refreshAudioOutputs(preferredId = audioOutputSelect.value) {
+  if (!supportsOutputSelection()) {
+    audioOutputSelect.disabled = true;
+    audioHelp.textContent = 'Chrome ne permet pas le choix audio depuis cette page. Utilise le sélecteur de sortie Android (panneau des réglages rapides).';
+    return;
+  }
+
   try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      addLogLine('[DIAG] Nouveau AudioContext créé (état=' + audioCtx.state + ')');
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const outputs = devices.filter(device => device.kind === 'audiooutput');
+    audioOutputSelect.replaceChildren(
+      new Option('Sortie système (haut-parleur / oreillette)', '')
+    );
+
+    outputs.forEach((device, index) => {
+      if (!device.deviceId || device.deviceId === 'default') return;
+      const name = device.label || `Sortie audio ${index + 1}`;
+      audioOutputSelect.add(new Option(name, device.deviceId));
+    });
+
+    const available = Array.from(audioOutputSelect.options)
+      .some(option => option.value === preferredId);
+    audioOutputSelect.value = available ? preferredId : '';
+    audioOutputSelect.disabled = outputs.length < 2;
+
+    if (outputs.length < 2) {
+      audioHelp.textContent = 'Aucune autre sortie détectée. Branche le casque ou choisis la sortie dans le panneau audio Android.';
+    } else {
+      audioHelp.textContent = 'Choisis le haut-parleur ou le casque connecté.';
     }
-    const mediaStream = new MediaStream([track.mediaStreamTrack]);
-    addLogLine('[DIAG] MediaStream créé, nb tracks audio=' + mediaStream.getAudioTracks().length);
-    const source = audioCtx.createMediaStreamSource(mediaStream);
-    source.connect(audioCtx.destination);
-    addLogLine('[DIAG] Connexion source->destination effectuée. État final=' + audioCtx.state);
-    if (audioCtx.state === 'suspended') {
-      addLogLine('[DIAG] Contexte suspendu, tentative de relance...');
-      audioCtx.resume().then(() => addLogLine('[DIAG] Contexte relancé, nouvel état=' + audioCtx.state));
-    }
-  } catch (e) {
-    addLogLine('[DIAG] Échec routage Web Audio : ' + e.message);
+  } catch (error) {
+    audioOutputSelect.disabled = true;
+    audioHelp.textContent = `Impossible de lister les sorties audio : ${error.message}`;
   }
 }
 
-async function activateSpeaker() {
-  addLogLine('[DIAG] Activation du mode de sortie haut-parleur...');
+async function selectAudioOutput(deviceId) {
+  if (!supportsOutputSelection()) return;
+
   try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    await audioCtx.resume();
-    addLogLine('[DIAG] État AudioContext après resume() : ' + audioCtx.state);
-    useWebAudioOutput = true;
-    speakerBtn.textContent = '🔊 Mode HP actif';
-    speakerBtn.disabled = true;
-    addLogLine('[DIAG] AudioContext activé. Connectez-vous maintenant pour appliquer ce mode à la voix de DST1.');
-  } catch (e) {
-    addLogLine('[DIAG] Échec activation AudioContext : ' + e.message);
+    await audioEl.setSinkId(deviceId);
+    try { localStorage.setItem('dst1-audio-output', deviceId); }
+    catch (_) { /* Le stockage local peut être indisponible en navigation privée. */ }
+    audioHelp.textContent = deviceId
+      ? `Sortie sélectionnée : ${audioOutputSelect.selectedOptions[0]?.textContent || 'casque'}.`
+      : 'Sortie système sélectionnée.';
+    if (audioEl.srcObject) await audioEl.play();
+  } catch (error) {
+    audioOutputSelect.value = '';
+    audioHelp.textContent = `Sélection impossible : ${error.message}. Utilise la sortie système du téléphone.`;
   }
 }
 
-speakerBtn.addEventListener('click', activateSpeaker);
+audioOutputSelect.addEventListener('change', () => {
+  selectAudioOutput(audioOutputSelect.value);
+});
+
+refreshAudioOutputs(savedAudioOutput);
+if (navigator.mediaDevices?.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', () => refreshAudioOutputs());
+}
 
 // --------------------------------------------------------------
 // Connexion LiveKit — microphone en configuration PAR DEFAUT
@@ -378,7 +425,7 @@ async function connect() {
 
     room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
       try {
-        addLogLine('[DIAG] TrackSubscribed reçu — kind=' + track.kind + ', participant=' + participant.identity + ', useWebAudioOutput=' + useWebAudioOutput);
+        addLogLine('[AUDIO] Track distant reçu — kind=' + track.kind + ', participant=' + participant.identity);
 
         if (track.kind !== 'audio') {
           addLogLine('[DIAG] Track ignoré (pas audio).');
@@ -390,14 +437,23 @@ async function connect() {
         }
         attachedTrackSids.add(publication.trackSid);
 
-        if (useWebAudioOutput) {
-          routeTrackViaWebAudio(track);
-        } else {
-          track.attach(audioEl);
-          addLogLine('[DIAG] Track attaché via élément <audio> classique.');
-        }
+        track.attach(audioEl);
+        audioEl.play().then(() => {
+          audioHelp.textContent = 'Audio DST1 connecté.';
+        }).catch(error => {
+          audioHelp.textContent = 'Lecture bloquée par le téléphone. Vérifie le volume et la sortie audio du système.';
+          addLogLine('[AUDIO] Lecture en attente d’un geste utilisateur : ' + error.message);
+        });
       } catch (e) {
-        addLogLine('[DIAG] Exception dans TrackSubscribed : ' + e.message);
+        audioHelp.textContent = `Erreur de lecture audio : ${e.message}`;
+        addLogLine('[AUDIO] Exception à l’attachement du track : ' + e.message);
+      }
+    });
+
+    room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication) => {
+      if (track.kind === 'audio') {
+        track.detach(audioEl);
+        attachedTrackSids.delete(publication.trackSid);
       }
     });
 
@@ -437,6 +493,9 @@ async function connect() {
       animateBars(false);
       attachedTrackSids.clear();
       segmentElements.clear();
+      audioEl.pause();
+      audioEl.srcObject = null;
+      audioHelp.textContent = 'Déconnecté.';
       room = null;
     });
 
@@ -445,7 +504,8 @@ async function connect() {
 
     // Publication du micro avec les reglages PAR DEFAUT du navigateur.
     await room.localParticipant.setMicrophoneEnabled(true);
-    addLogLine('[DIAG] Micro publié.');
+    addLogLine('[AUDIO] Micro publié.');
+    await refreshAudioOutputs(audioOutputSelect.value || savedAudioOutput);
 
     statusText.textContent = 'En écoute — parlez à DST1';
     liveDot.classList.add('live');
@@ -471,4 +531,3 @@ disconnectBtn.addEventListener('click', disconnect);
 </script>
 </body>
 </html>
-
