@@ -24,6 +24,14 @@ from typing import Any, Callable, Coroutine, Dict, List, Optional
 import httpx
 from livekit.agents import function_tool, RunContext
 
+# Import du diagnostic tool interne
+try:
+    from diagnostic_tool import create_diagnostic_function_tool
+    DIAGNOSTIC_TOOL_AVAILABLE = True
+except ImportError:
+    DIAGNOSTIC_TOOL_AVAILABLE = False
+    create_diagnostic_function_tool = None
+
 logger = logging.getLogger("dst1-tool-loader")
 
 N8N_WEBHOOK_BASE = os.environ.get("N8N_WEBHOOK_BASE", "http://dst1-n8n:5678/webhook")
@@ -323,6 +331,17 @@ async def discover_tools_from_n8n() -> List[Any]:
     logger.info(
         f"{len(tools)} tool(s) decouvert(s) automatiquement via n8n (tag '{TOOL_TAG}')"
     )
+    
+    # Ajouter le tool diagnostic interne (non n8n)
+    if DIAGNOSTIC_TOOL_AVAILABLE and create_diagnostic_function_tool:
+        try:
+            diagnostic_tool = create_diagnostic_function_tool()
+            if diagnostic_tool:
+                tools.append(diagnostic_tool)
+                logger.info("Tool interne 'analyser_logs_diagnostic' (diagnostic) enregistré")
+        except Exception as e:
+            logger.warning(f"Erreur lors de l'enregistrement du diagnostic tool : {e}")
+    
     return tools
 
 

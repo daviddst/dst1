@@ -25,6 +25,7 @@ from livekit.agents import (
 from livekit.plugins import silero, google
 from tool_loader import discover_tools_from_n8n, build_tools_summary
 from text_endpoint import app as text_app
+from diagnostic_tool import run_diagnostic_on_error
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -76,7 +77,7 @@ def prewarm(proc: JobProcess):
     logger.info(f"Config agent chargee : {proc.userdata['agent_config']['agent']['name']}")
 
     try:
-        proc.userdata["tools"] = discover_tools_from_n8n()
+        proc.userdata["tools"] = asyncio.run(discover_tools_from_n8n())
     except Exception as e:
         logger.error(f"Echec de la decouverte automatique des outils via n8n : {e}")
         proc.userdata["tools"] = []
@@ -128,6 +129,21 @@ def register_error_handler(session: AgentSession):
             session.say(MESSAGE_RECUPERATION_ERREUR, allow_interruptions=False)
         except Exception as say_err:
             logger.error(f"Impossible de notifier l'utilisateur de l'erreur : {say_err}")
+
+        # Lance un diagnostique asynchrone en arriere-plan via Thread
+        def run_diagnostic_in_thread():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    run_diagnostic_on_error(error_msg=f"{source_name}: {str(ev.error)}")
+                )
+                loop.close()
+            except Exception as diag_err:
+                logger.error(f"Erreur lors du lancement du diagnostique : {diag_err}")
+
+        thread = threading.Thread(target=run_diagnostic_in_thread, daemon=True)
+        thread.start()
 
 
 @server.rtc_session()
