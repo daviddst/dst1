@@ -1,0 +1,577 @@
+{
+  "id": "EtKSlEWVq18pIqBI",
+  "name": "Tool - Créer rendez-vous",
+  "description": "",
+  "active": true,
+  "activeVersionId": "41400069-a67f-4fee-a962-b2c47a6d48cf",
+  "createdAt": "2026-09-25T22:48:47.555Z",
+  "updatedAt": "2026-09-26T10:25:22.741Z",
+  "isArchived": false,
+  "versionId": "41400069-a67f-4fee-a962-b2c47a6d48cf",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-creer-rdv",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "000ab038-e7d4-497b-bd38-dc1e23eebdfd",
+      "name": "Webhook - Creer RDV",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        -16
+      ],
+      "webhookId": "dst1-creer-rdv"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "creer_rdv"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Cree un rendez-vous Google Calendar. Recoit un calendar_id obtenu via resoudre_calendrier; sans calendar_id, utilise primary. Demande confirmation avant appel. Les rappels sont une liste de minutes avant l'evenement."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"titre\":{\"type\":\"string\"},\"date_debut\":{\"type\":\"string\",\"description\":\"Date/heure ISO 8601.\"},\"date_fin\":{\"type\":\"string\",\"description\":\"Date/heure ISO 8601. Defaut: une heure apres date_debut.\"},\"lieu\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de resoudre_calendrier. Defaut: primary.\"},\"rappels_minutes\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"}}},\"required\":[\"titre\",\"date_debut\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "3ea6b07d-ce5d-4ba0-98f3-3f8bccfdb934",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -320,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json.body||$json;if(!String(x.titre||'').trim()||!x.date_debut)return [{json:{error:true,message:\"titre et date_debut sont obligatoires.\"}}];const start=new Date(x.date_debut);if(Number.isNaN(start.getTime()))return [{json:{error:true,message:\"date_debut est invalide.\"}}];const end=x.date_fin?new Date(x.date_fin):new Date(start.getTime()+3600000);if(Number.isNaN(end.getTime())||end<=start)return [{json:{error:true,message:\"date_fin est invalide ou anterieure au debut.\"}}];const reminders=x.rappels_minutes;if(reminders!==undefined&&(!Array.isArray(reminders)||reminders.some(m=>!Number.isInteger(m)||m<0)))return [{json:{error:true,message:\"rappels_minutes doit etre une liste d'entiers positifs ou nuls.\"}}];return [{json:{calendar_id:x.calendar_id||'primary',titre:String(x.titre).trim(),date_debut:start.toISOString(),date_fin:end.toISOString(),lieu:x.lieu||'',rappels_minutes:reminders}}];"
+      },
+      "id": "ee515cb6-9e4a-4333-aa43-0ce0ffa1a780",
+      "name": "Valider rendez-vous",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "28ec2ef6-24bb-40a0-a4bc-abb71d63179e",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "a6ccf21c-0366-43dc-afc7-11fec085d4a4",
+      "name": "Reponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ summary: $json.titre, location: $json.lieu, start: { dateTime: $json.date_debut }, end: { dateTime: $json.date_fin }, reminders: $json.rappels_minutes !== undefined ? { useDefault: false, overrides: $json.rappels_minutes.map(m => ({ method: 'popup', minutes: m })) } : { useDefault: true } }) }}",
+        "options": {}
+      },
+      "id": "424d8234-317d-4a20-bce2-c354798a8cc8",
+      "name": "Google - Creer evenement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        80
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const e=$json;const c=$('Valider rendez-vous').first().json;return [{json:{success:true,message:`Rendez-vous \"${c.titre}\" cree.`,event_id:e.id,calendar_id:c.calendar_id,lien:e.htmlLink||null}}];"
+      },
+      "id": "b6a196fb-9e08-42c9-a94e-620bdfd18714",
+      "name": "Retour creation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "3525c2ed-7e49-4355-8a30-358df326d9a3",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Creer RDV": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider rendez-vous",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider rendez-vous": {
+      "main": [
+        [
+          {
+            "node": "Erreur de validation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google - Creer evenement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Creer evenement": {
+      "main": [
+        [
+          {
+            "node": "Retour creation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retour creation": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "EtKSlEWVq18pIqBI",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:48:47.556Z",
+      "updatedAt": "2026-09-25T22:48:47.556Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "41400069-a67f-4fee-a962-b2c47a6d48cf",
+    "workflowId": "EtKSlEWVq18pIqBI",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-creer-rdv",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "000ab038-e7d4-497b-bd38-dc1e23eebdfd",
+        "name": "Webhook - Creer RDV",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -544,
+          -16
+        ],
+        "webhookId": "dst1-creer-rdv"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "creer_rdv"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Cree un rendez-vous Google Calendar. Recoit un calendar_id obtenu via resoudre_calendrier; sans calendar_id, utilise primary. Demande confirmation avant appel. Les rappels sont une liste de minutes avant l'evenement."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"titre\":{\"type\":\"string\"},\"date_debut\":{\"type\":\"string\",\"description\":\"Date/heure ISO 8601.\"},\"date_fin\":{\"type\":\"string\",\"description\":\"Date/heure ISO 8601. Defaut: une heure apres date_debut.\"},\"lieu\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de resoudre_calendrier. Defaut: primary.\"},\"rappels_minutes\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"}}},\"required\":[\"titre\",\"date_debut\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "true"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "3ea6b07d-ce5d-4ba0-98f3-3f8bccfdb934",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -320,
+          -16
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const x=$json.body||$json;if(!String(x.titre||'').trim()||!x.date_debut)return [{json:{error:true,message:\"titre et date_debut sont obligatoires.\"}}];const start=new Date(x.date_debut);if(Number.isNaN(start.getTime()))return [{json:{error:true,message:\"date_debut est invalide.\"}}];const end=x.date_fin?new Date(x.date_fin):new Date(start.getTime()+3600000);if(Number.isNaN(end.getTime())||end<=start)return [{json:{error:true,message:\"date_fin est invalide ou anterieure au debut.\"}}];const reminders=x.rappels_minutes;if(reminders!==undefined&&(!Array.isArray(reminders)||reminders.some(m=>!Number.isInteger(m)||m<0)))return [{json:{error:true,message:\"rappels_minutes doit etre une liste d'entiers positifs ou nuls.\"}}];return [{json:{calendar_id:x.calendar_id||'primary',titre:String(x.titre).trim(),date_debut:start.toISOString(),date_fin:end.toISOString(),lieu:x.lieu||'',rappels_minutes:reminders}}];"
+        },
+        "id": "ee515cb6-9e4a-4333-aa43-0ce0ffa1a780",
+        "name": "Valider rendez-vous",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -96,
+          -16
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "28ec2ef6-24bb-40a0-a4bc-abb71d63179e",
+        "name": "Erreur de validation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          112,
+          -16
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "a6ccf21c-0366-43dc-afc7-11fec085d4a4",
+        "name": "Reponse erreur validation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          320,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ summary: $json.titre, location: $json.lieu, start: { dateTime: $json.date_debut }, end: { dateTime: $json.date_fin }, reminders: $json.rappels_minutes !== undefined ? { useDefault: false, overrides: $json.rappels_minutes.map(m => ({ method: 'popup', minutes: m })) } : { useDefault: true } }) }}",
+          "options": {}
+        },
+        "id": "424d8234-317d-4a20-bce2-c354798a8cc8",
+        "name": "Google - Creer evenement",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          320,
+          80
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const e=$json;const c=$('Valider rendez-vous').first().json;return [{json:{success:true,message:`Rendez-vous \"${c.titre}\" cree.`,event_id:e.id,calendar_id:c.calendar_id,lien:e.htmlLink||null}}];"
+        },
+        "id": "b6a196fb-9e08-42c9-a94e-620bdfd18714",
+        "name": "Retour creation",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          528,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "3525c2ed-7e49-4355-8a30-358df326d9a3",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          736,
+          80
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Creer RDV": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Valider rendez-vous",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valider rendez-vous": {
+        "main": [
+          [
+            {
+              "node": "Erreur de validation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de validation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur validation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Google - Creer evenement",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Creer evenement": {
+        "main": [
+          [
+            {
+              "node": "Retour creation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retour creation": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 41400069",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:25:22.747Z",
+    "updatedAt": "2026-09-26T10:25:25.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 400,
+        "workflowId": "EtKSlEWVq18pIqBI",
+        "versionId": "41400069-a67f-4fee-a962-b2c47a6d48cf",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:25:25.803Z"
+      }
+    ]
+  }
+}

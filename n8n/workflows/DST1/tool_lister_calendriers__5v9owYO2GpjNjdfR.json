@@ -1,0 +1,385 @@
+{
+  "id": "5v9owYO2GpjNjdfR",
+  "name": "Tool - Lister calendriers",
+  "description": "",
+  "active": true,
+  "activeVersionId": "e80db17c-ab36-498e-881f-07728b973b45",
+  "createdAt": "2026-09-25T22:46:41.041Z",
+  "updatedAt": "2026-09-26T10:18:13.730Z",
+  "isArchived": false,
+  "versionId": "e80db17c-ab36-498e-881f-07728b973b45",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-lister-calendriers",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "72d28ab4-1c4a-47ad-ac2d-3cec0d4947e4",
+      "name": "Webhook - Lister Calendriers",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        96,
+        -80
+      ],
+      "webhookId": "dst1-lister-calendriers"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "lister_calendriers"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Liste tous les calendriers Google Calendar accessibles, avec leur nom, identifiant, statut principal et role d'acces. Utilise cet outil avant de resoudre un nom de calendrier ou si l'utilisateur demande les calendriers disponibles."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "e311188b-3ae3-4aa1-b4c9-d0e3e09c48f7",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "options": {}
+      },
+      "id": "f9763e8b-db45-4957-806b-c07c4b581067",
+      "name": "Google - Lister calendriers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        544,
+        -80
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $json.items || [];\nconst calendriers = items.map(c => ({ calendar_id: c.id, nom: c.summary, principal: !!c.primary, role_acces: c.accessRole, couleur: c.backgroundColor || null }));\nreturn [{ json: { success: true, nombre_calendriers: calendriers.length, calendriers } }];"
+      },
+      "id": "35ea6bce-3cd4-4c94-89bc-4e3c643b7fe0",
+      "name": "Formater calendriers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "25d85967-5034-4375-a48a-a843c55601df",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        992,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Lister Calendriers": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Google - Lister calendriers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister calendriers": {
+      "main": [
+        [
+          {
+            "node": "Formater calendriers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater calendriers": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "5v9owYO2GpjNjdfR",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:46:41.042Z",
+      "updatedAt": "2026-09-25T22:46:41.042Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "e80db17c-ab36-498e-881f-07728b973b45",
+    "workflowId": "5v9owYO2GpjNjdfR",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-lister-calendriers",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "72d28ab4-1c4a-47ad-ac2d-3cec0d4947e4",
+        "name": "Webhook - Lister Calendriers",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          96,
+          -80
+        ],
+        "webhookId": "dst1-lister-calendriers"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "lister_calendriers"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Liste tous les calendriers Google Calendar accessibles, avec leur nom, identifiant, statut principal et role d'acces. Utilise cet outil avant de resoudre un nom de calendrier ou si l'utilisateur demande les calendriers disponibles."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "false"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "e311188b-3ae3-4aa1-b4c9-d0e3e09c48f7",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          320,
+          -80
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "options": {}
+        },
+        "id": "f9763e8b-db45-4957-806b-c07c4b581067",
+        "name": "Google - Lister calendriers",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          544,
+          -80
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $json.items || [];\nconst calendriers = items.map(c => ({ calendar_id: c.id, nom: c.summary, principal: !!c.primary, role_acces: c.accessRole, couleur: c.backgroundColor || null }));\nreturn [{ json: { success: true, nombre_calendriers: calendriers.length, calendriers } }];"
+        },
+        "id": "35ea6bce-3cd4-4c94-89bc-4e3c643b7fe0",
+        "name": "Formater calendriers",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          768,
+          -80
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "25d85967-5034-4375-a48a-a843c55601df",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          992,
+          -80
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Lister Calendriers": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Google - Lister calendriers",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Lister calendriers": {
+        "main": [
+          [
+            {
+              "node": "Formater calendriers",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Formater calendriers": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version e80db17c",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:18:13.731Z",
+    "updatedAt": "2026-09-26T10:18:19.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 396,
+        "workflowId": "5v9owYO2GpjNjdfR",
+        "versionId": "e80db17c-ab36-498e-881f-07728b973b45",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:18:19.810Z"
+      }
+    ]
+  }
+}

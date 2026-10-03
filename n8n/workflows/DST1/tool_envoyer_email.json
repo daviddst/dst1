@@ -1,0 +1,190 @@
+{
+  "name": "Tool - Envoyer e-mail",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-envoyer-email",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "95008777-79e4-4d5a-86de-04638d570ba5",
+      "name": "Webhook - Envoyer e-mail",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-720, 320],
+      "webhookId": "dst1-envoyer-email"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "envoyer_email"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Envoie un e-mail en texte brut via Gmail à un seul destinataire. Avant tout appel, présente à l'utilisateur l'adresse du destinataire, l'objet et le texte intégral du message, puis attends sa confirmation explicite. N'appelle cet outil qu'après son accord; en cas de refus ou de doute, n'envoie rien."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"to\":{\"type\":\"string\",\"description\":\"Adresse e-mail unique du destinataire.\"},\"subject\":{\"type\":\"string\",\"description\":\"Objet de l'e-mail.\"},\"body\":{\"type\":\"string\",\"description\":\"Corps du message en texte brut.\"}},\"required\":[\"to\",\"subject\",\"body\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d27e8b2d-0d2c-479a-a849-5797c912a390",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-496, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json.body || $json;\nconst to = String(input.to || '').trim();\nconst subject = String(input.subject || '').trim();\nconst body = typeof input.body === 'string' ? input.body : '';\n\nif (!/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(to)) {\n  return [{ json: { error: true, message: \"'to' doit contenir une adresse e-mail valide unique.\" } }];\n}\nif (!subject || /[\\r\\n]/.test(subject)) {\n  return [{ json: { error: true, message: \"'subject' est obligatoire et ne doit pas contenir de retour à la ligne.\" } }];\n}\nif (!body.trim()) {\n  return [{ json: { error: true, message: \"'body' est obligatoire et ne peut pas être vide.\" } }];\n}\n\nreturn [{ json: { to, subject, body } }];"
+      },
+      "id": "73fe24f0-5904-4018-86c8-e67c38b981d8",
+      "name": "Valider les champs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-272, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "email-validation-error",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "36e8ce53-3aa4-43b1-91d3-9e6043dfcba7",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-48, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "25c3e5f4-9d4a-411b-8553-58b76d41bc40",
+      "name": "Réponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [176, 144]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "3e25a05a-c99e-4344-8f91-ece1294165a7",
+      "name": "Gmail - Envoyer e-mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [176, 496],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kn7BIN6mijQN6Heh",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Valider les champs').first().json;\nreturn [{ json: { success: true, message: 'E-mail transmis à Gmail.', to: request.to, subject: request.subject, gmail_message_id: $json.id || null } }];"
+      },
+      "id": "476aa388-1a77-45a0-a84d-c2de8774a513",
+      "name": "Retour envoi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 496]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "b7b36b66-7a08-4c83-9745-93e14df8d18c",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [624, 496]
+    }
+  ],
+  "connections": {
+    "Webhook - Envoyer e-mail": {
+      "main": [[{"node": "ToolSchema", "type": "main", "index": 0}]]
+    },
+    "ToolSchema": {
+      "main": [[{"node": "Valider les champs", "type": "main", "index": 0}]]
+    },
+    "Valider les champs": {
+      "main": [[{"node": "Erreur de validation ?", "type": "main", "index": 0}]]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [{"node": "Réponse erreur validation", "type": "main", "index": 0}],
+        [{"node": "Gmail - Envoyer e-mail", "type": "main", "index": 0}]
+      ]
+    },
+    "Gmail - Envoyer e-mail": {
+      "main": [[{"node": "Retour envoi", "type": "main", "index": 0}]]
+    },
+    "Retour envoi": {
+      "main": [[{"node": "Réponse succès", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool"
+    }
+  ]
+}

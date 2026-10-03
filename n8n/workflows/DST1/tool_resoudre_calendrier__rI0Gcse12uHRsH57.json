@@ -1,0 +1,521 @@
+{
+  "id": "rI0Gcse12uHRsH57",
+  "name": "Tool - Résoudre calendrier",
+  "description": "",
+  "active": true,
+  "activeVersionId": "e8bd1392-0ced-46d9-8dd5-c7df7cb0dbc1",
+  "createdAt": "2026-09-25T22:47:21.316Z",
+  "updatedAt": "2026-09-26T10:26:51.906Z",
+  "isArchived": false,
+  "versionId": "e8bd1392-0ced-46d9-8dd5-c7df7cb0dbc1",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-resoudre-calendrier",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bc84b377-43f9-45c9-873c-f5dd3431238d",
+      "name": "Webhook - Resoudre Calendrier",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1088,
+        128
+      ],
+      "webhookId": "dst1-resoudre-calendrier"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "resoudre_calendrier"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Resout un nom de calendrier Google Calendar en calendar_id. Utilise cet outil avant consulter_agenda, creer_rdv, modifier_rdv ou supprimer_rdv lorsqu'un calendrier est designe par son nom. Sans calendar_nom, retourne le calendrier principal (primary)."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"calendar_nom\":{\"type\":\"string\",\"description\":\"Nom du calendrier a resoudre. Si absent, le calendrier principal est utilise.\"}},\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d94b19df-afcf-4080-894d-cdd452d08ecd",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -864,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "options": {}
+      },
+      "id": "56ddaa81-3a85-4841-9354-9d4a8d42cad1",
+      "name": "Google - Lister calendriers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -640,
+        128
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const bodySrc = $('ToolSchema').first().json.body || $('ToolSchema').first().json;\nconst requested = String(bodySrc.calendar_nom ?? '').trim();\nif (!requested) return [{json:{success:true, calendar_id:'primary', calendar_nom:null, nom_resolu:'Calendrier principal'}}];\nconst target = requested.toLocaleLowerCase();\nconst calendars = $json.items || [];\nconst exact = calendars.find(c => String(c.summary || '').trim().toLocaleLowerCase() === target);\nconst found = exact || calendars.find(c => String(c.summary || '').trim().toLocaleLowerCase().includes(target));\nif (!found) return [{json:{error:true, message:`Aucun calendrier ne correspond a \"${requested}\". Utilise l'outil lister_calendriers.`}}];\nreturn [{json:{success:true, calendar_id:found.id, calendar_nom:requested, nom_resolu:found.summary, principal:!!found.primary, role_acces:found.accessRole}}];"
+      },
+      "id": "723ccac2-bc1b-442b-a716-3e46d65094c9",
+      "name": "Resoudre le calendrier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "96004fb2-1eba-455a-8699-74aec4898729",
+      "name": "Erreur de resolution ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "b5e1a6c7-5e0c-43b7-bd88-4844954d9a39",
+      "name": "Reponse erreur resolution",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "5cf19420-c24d-4b7b-b5e0-4672d4df2b45",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        208
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Resoudre Calendrier": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Google - Lister calendriers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister calendriers": {
+      "main": [
+        [
+          {
+            "node": "Resoudre le calendrier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resoudre le calendrier": {
+      "main": [
+        [
+          {
+            "node": "Erreur de resolution ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de resolution ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur resolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "rI0Gcse12uHRsH57",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:47:21.317Z",
+      "updatedAt": "2026-09-25T22:47:21.317Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "e8bd1392-0ced-46d9-8dd5-c7df7cb0dbc1",
+    "workflowId": "rI0Gcse12uHRsH57",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-resoudre-calendrier",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "bc84b377-43f9-45c9-873c-f5dd3431238d",
+        "name": "Webhook - Resoudre Calendrier",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -1088,
+          128
+        ],
+        "webhookId": "dst1-resoudre-calendrier"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "resoudre_calendrier"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Resout un nom de calendrier Google Calendar en calendar_id. Utilise cet outil avant consulter_agenda, creer_rdv, modifier_rdv ou supprimer_rdv lorsqu'un calendrier est designe par son nom. Sans calendar_nom, retourne le calendrier principal (primary)."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"calendar_nom\":{\"type\":\"string\",\"description\":\"Nom du calendrier a resoudre. Si absent, le calendrier principal est utilise.\"}},\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "false"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "d94b19df-afcf-4080-894d-cdd452d08ecd",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -864,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "options": {}
+        },
+        "id": "56ddaa81-3a85-4841-9354-9d4a8d42cad1",
+        "name": "Google - Lister calendriers",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -640,
+          128
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const bodySrc = $('ToolSchema').first().json.body || $('ToolSchema').first().json;\nconst requested = String(bodySrc.calendar_nom ?? '').trim();\nif (!requested) return [{json:{success:true, calendar_id:'primary', calendar_nom:null, nom_resolu:'Calendrier principal'}}];\nconst target = requested.toLocaleLowerCase();\nconst calendars = $json.items || [];\nconst exact = calendars.find(c => String(c.summary || '').trim().toLocaleLowerCase() === target);\nconst found = exact || calendars.find(c => String(c.summary || '').trim().toLocaleLowerCase().includes(target));\nif (!found) return [{json:{error:true, message:`Aucun calendrier ne correspond a \"${requested}\". Utilise l'outil lister_calendriers.`}}];\nreturn [{json:{success:true, calendar_id:found.id, calendar_nom:requested, nom_resolu:found.summary, principal:!!found.primary, role_acces:found.accessRole}}];"
+        },
+        "id": "723ccac2-bc1b-442b-a716-3e46d65094c9",
+        "name": "Resoudre le calendrier",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -416,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "96004fb2-1eba-455a-8699-74aec4898729",
+        "name": "Erreur de resolution ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -208,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 404
+          }
+        },
+        "id": "b5e1a6c7-5e0c-43b7-bd88-4844954d9a39",
+        "name": "Reponse erreur resolution",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "5cf19420-c24d-4b7b-b5e0-4672d4df2b45",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          208
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Resoudre Calendrier": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Google - Lister calendriers",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Lister calendriers": {
+        "main": [
+          [
+            {
+              "node": "Resoudre le calendrier",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resoudre le calendrier": {
+        "main": [
+          [
+            {
+              "node": "Erreur de resolution ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de resolution ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur resolution",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version e8bd1392",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:26:51.906Z",
+    "updatedAt": "2026-09-26T10:26:56.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 404,
+        "workflowId": "rI0Gcse12uHRsH57",
+        "versionId": "e8bd1392-0ced-46d9-8dd5-c7df7cb0dbc1",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:26:56.787Z"
+      }
+    ]
+  }
+}

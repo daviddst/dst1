@@ -1,0 +1,577 @@
+{
+  "id": "E9JDOv2SmfVcZNeG",
+  "name": "Tool - Modifier rendez-vous",
+  "description": "",
+  "active": true,
+  "activeVersionId": "55b2bbc8-7abc-401b-9e23-ddd83ce8eefe",
+  "createdAt": "2026-09-25T22:49:21.982Z",
+  "updatedAt": "2026-09-26T10:18:52.056Z",
+  "isArchived": false,
+  "versionId": "55b2bbc8-7abc-401b-9e23-ddd83ce8eefe",
+  "versionCounter": 3,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-modifier-rdv",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "27df680e-ff9d-4eee-920d-1350a38cf41a",
+      "name": "Webhook - Modifier RDV",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        368
+      ],
+      "webhookId": "dst1-modifier-rdv"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "modifier_rdv"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Modifie un rendez-vous existant. Requiert event_id et idealement calendar_id obtenus via consulter_agenda. Ne renseigne que les champs explicitement demandes. Pour les seuls rappels, prefere gerer_rappels_rdv. Demande confirmation."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"event_id\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de consulter_agenda; defaut primary.\"},\"titre\":{\"type\":\"string\"},\"date_debut\":{\"type\":\"string\"},\"date_fin\":{\"type\":\"string\"},\"lieu\":{\"type\":\"string\"},\"rappels_minutes\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"}}},\"required\":[\"event_id\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "3740999c-2667-47d4-81ac-c1b551873c7c",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -256,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json.body||$json;if(!String(x.event_id||'').trim())return [{json:{error:true,message:\"event_id est obligatoire.\"}}];const p={};if(x.titre!==undefined)p.summary=x.titre;if(x.lieu!==undefined)p.location=x.lieu;if(x.date_debut!==undefined)p.start={dateTime:x.date_debut};if(x.date_fin!==undefined)p.end={dateTime:x.date_fin};if(x.rappels_minutes!==undefined){if(!Array.isArray(x.rappels_minutes)||x.rappels_minutes.some(m=>!Number.isInteger(m)||m<0))return [{json:{error:true,message:\"rappels_minutes invalide.\"}}];p.reminders=x.rappels_minutes.length?{useDefault:false,overrides:x.rappels_minutes.map(m=>({method:'popup',minutes:m}))}:{useDefault:true};}if(!Object.keys(p).length)return [{json:{error:true,message:\"Aucun champ a modifier.\"}}];return [{json:{event_id:String(x.event_id).trim(),calendar_id:x.calendar_id||'primary',patch:p}}];"
+      },
+      "id": "946cf98d-b4ad-4520-8abd-e6e4fa56b781",
+      "name": "Construire modification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1567191c-e105-42c9-b824-9886932e9f8b",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        176,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "44babdd8-b135-42a4-be4e-af3b797fdf46",
+      "name": "Reponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {}
+      },
+      "id": "b0e52d51-2852-43e6-991d-b6612c754166",
+      "name": "Google - Modifier evenement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        384,
+        448
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const e=$json;const c=$('Construire modification').first().json;return [{json:{success:true,message:'Rendez-vous mis a jour.',event_id:c.event_id,calendar_id:c.calendar_id,lien:e.htmlLink||null}}];"
+      },
+      "id": "06f8fd95-38c9-44c5-ac6c-0e91f850eed2",
+      "name": "Retour modification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "ea86e4e1-8b31-43cb-88b4-62be27ae01a3",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        448
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Modifier RDV": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Construire modification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construire modification": {
+      "main": [
+        [
+          {
+            "node": "Erreur de validation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google - Modifier evenement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Modifier evenement": {
+      "main": [
+        [
+          {
+            "node": "Retour modification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retour modification": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "E9JDOv2SmfVcZNeG",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:49:21.983Z",
+      "updatedAt": "2026-09-25T22:49:21.983Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "55b2bbc8-7abc-401b-9e23-ddd83ce8eefe",
+    "workflowId": "E9JDOv2SmfVcZNeG",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-modifier-rdv",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "27df680e-ff9d-4eee-920d-1350a38cf41a",
+        "name": "Webhook - Modifier RDV",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -480,
+          368
+        ],
+        "webhookId": "dst1-modifier-rdv"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "modifier_rdv"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Modifie un rendez-vous existant. Requiert event_id et idealement calendar_id obtenus via consulter_agenda. Ne renseigne que les champs explicitement demandes. Pour les seuls rappels, prefere gerer_rappels_rdv. Demande confirmation."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"event_id\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de consulter_agenda; defaut primary.\"},\"titre\":{\"type\":\"string\"},\"date_debut\":{\"type\":\"string\"},\"date_fin\":{\"type\":\"string\"},\"lieu\":{\"type\":\"string\"},\"rappels_minutes\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"}}},\"required\":[\"event_id\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "true"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "3740999c-2667-47d4-81ac-c1b551873c7c",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -256,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const x=$json.body||$json;if(!String(x.event_id||'').trim())return [{json:{error:true,message:\"event_id est obligatoire.\"}}];const p={};if(x.titre!==undefined)p.summary=x.titre;if(x.lieu!==undefined)p.location=x.lieu;if(x.date_debut!==undefined)p.start={dateTime:x.date_debut};if(x.date_fin!==undefined)p.end={dateTime:x.date_fin};if(x.rappels_minutes!==undefined){if(!Array.isArray(x.rappels_minutes)||x.rappels_minutes.some(m=>!Number.isInteger(m)||m<0))return [{json:{error:true,message:\"rappels_minutes invalide.\"}}];p.reminders=x.rappels_minutes.length?{useDefault:false,overrides:x.rappels_minutes.map(m=>({method:'popup',minutes:m}))}:{useDefault:true};}if(!Object.keys(p).length)return [{json:{error:true,message:\"Aucun champ a modifier.\"}}];return [{json:{event_id:String(x.event_id).trim(),calendar_id:x.calendar_id||'primary',patch:p}}];"
+        },
+        "id": "946cf98d-b4ad-4520-8abd-e6e4fa56b781",
+        "name": "Construire modification",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -32,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "1567191c-e105-42c9-b824-9886932e9f8b",
+        "name": "Erreur de validation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          176,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "44babdd8-b135-42a4-be4e-af3b797fdf46",
+        "name": "Reponse erreur validation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          384,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.patch) }}",
+          "options": {}
+        },
+        "id": "b0e52d51-2852-43e6-991d-b6612c754166",
+        "name": "Google - Modifier evenement",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          384,
+          448
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const e=$json;const c=$('Construire modification').first().json;return [{json:{success:true,message:'Rendez-vous mis a jour.',event_id:c.event_id,calendar_id:c.calendar_id,lien:e.htmlLink||null}}];"
+        },
+        "id": "06f8fd95-38c9-44c5-ac6c-0e91f850eed2",
+        "name": "Retour modification",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          592,
+          448
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "ea86e4e1-8b31-43cb-88b4-62be27ae01a3",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          800,
+          448
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Modifier RDV": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Construire modification",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Construire modification": {
+        "main": [
+          [
+            {
+              "node": "Erreur de validation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de validation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur validation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Google - Modifier evenement",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Modifier evenement": {
+        "main": [
+          [
+            {
+              "node": "Retour modification",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retour modification": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 55b2bbc8",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:18:52.056Z",
+    "updatedAt": "2026-09-26T10:19:01.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 398,
+        "workflowId": "E9JDOv2SmfVcZNeG",
+        "versionId": "55b2bbc8-7abc-401b-9e23-ddd83ce8eefe",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:19:01.402Z"
+      }
+    ]
+  }
+}

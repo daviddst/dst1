@@ -1,0 +1,353 @@
+{
+  "name": "Notification - Agenda quotidien",
+  "nodes": [
+    {
+      "id": "77ca29bf-4750-4d91-9b81-8f3bc02216d4",
+      "name": "Préparer la journée",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -272
+      ],
+      "parameters": {
+        "jsCode": "const timeZone = 'Europe/Paris';\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());\nconst part = (name) => parts.find((value) => value.type === name).value;\nconst today = `${part('year')}-${part('month')}-${part('day')}`;\nconst tomorrow = new Date(`${today}T00:00:00Z`);\ntomorrow.setUTCDate(tomorrow.getUTCDate() + 1);\nconst endDate = tomorrow.toISOString().slice(0, 10);\nconst offsetAt = (date) => {\n  const value = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' }).formatToParts(date).find((item) => item.type === 'timeZoneName').value;\n  const match = value.match(/^GMT(?:([+-])(\\d{2}):(\\d{2}))?$/);\n  if (!match) throw new Error(`Fuseau horaire non reconnu : ${value}`);\n  return match[1] ? (match[1] === '+' ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3])) * 60000 : 0;\n};\nconst midnight = (date) => {\n  const [year, month, day] = date.split('-').map(Number);\n  const target = Date.UTC(year, month - 1, day);\n  let guess = target;\n  for (let attempt = 0; attempt < 3; attempt += 1) {\n    const next = target - offsetAt(new Date(guess));\n    if (next === guess) break;\n    guess = next;\n  }\n  return new Date(guess).toISOString();\n};\nreturn [{ json: { timeMin: midnight(today), timeMax: midnight(endDate), date: today } }];"
+      }
+    },
+    {
+      "id": "ca3beea8-a584-4898-a113-c89daff50722",
+      "name": "Google - Lister calendriers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1424,
+        -272
+      ],
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "id": "960769ec-785f-461e-bf9c-a308f7e2ad1a",
+      "name": "Sélectionner tous les calendriers lisibles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        -272
+      ],
+      "parameters": {
+        "jsCode": "const calendars = ($json.items || []).filter((calendar) => ['owner', 'writer', 'reader'].includes(calendar.accessRole));\nif (!calendars.length) throw new Error('Aucun calendrier lisible trouvé dans Google Calendar.');\nconst range = $('Préparer la journée').first().json;\nreturn calendars.map((calendar) => ({ json: { calendar_id: calendar.id, calendar_name: calendar.summary || (calendar.primary ? 'Principal' : 'Sans nom'), timeMin: range.timeMin, timeMax: range.timeMax } }));"
+      }
+    },
+    {
+      "id": "c6396e2a-5006-4116-b5d1-ff965ee89d21",
+      "name": "Google - Lister les événements",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "alwaysOutputData": true,
+      "position": [
+        1872,
+        -272
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "calendar": "={{$json.calendar_id}}",
+        "timeMin": "={{$json.timeMin}}",
+        "timeMax": "={{$json.timeMax}}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "id": "daa8ccf1-70d4-4edb-94dd-cff09737adc5",
+      "name": "Associer le calendrier aux événements",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2096,
+        -272
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "61be7073-463a-44b1-a956-4f22c45d783b",
+              "name": "calendar_id",
+              "type": "string",
+              "value": "={{ $('Sélectionner tous les calendriers lisibles').item.json.calendar_id }}"
+            },
+            {
+              "id": "76ce4e42-0830-4379-b512-bb13c654c12e",
+              "name": "calendar_name",
+              "type": "string",
+              "value": "={{ $('Sélectionner tous les calendriers lisibles').item.json.calendar_name }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "a7f71061-7078-4669-8cd7-c664df5f4ec9",
+      "name": "Composer le récapitulatif (sans récurrences exclues)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -272
+      ],
+      "parameters": {
+        "jsCode": "const excludedRecurringTitles = new Set(['danse sarah', 'gym emma']);\nconst currentDate = $('Préparer la journée').first().json.date;\n\nconst addDaysToDateStr = (dateStr, days) => {\n  const [year, month, day] = dateStr.split('-').map(Number);\n  const date = new Date(Date.UTC(year, month - 1, day));\n  date.setUTCDate(date.getUTCDate() + days);\n  return date.toISOString().slice(0, 10);\n};\n\nconst getParisDateStr = (dateTimeStr) => {\n  const timeZone = 'Europe/Paris';\n  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(dateTimeStr));\n  const part = (name) => parts.find((value) => value.type === name).value;\n  return `${part('year')}-${part('month')}-${part('day')}`;\n};\n\nconst events = $input.all().map((item) => item.json).filter((event) => {\n  if (!event || !event.start) return false;\n  const isRecurring = Boolean(event.recurringEventId || (Array.isArray(event.recurrence) && event.recurrence.length));\n  const titleIsExcluded = excludedRecurringTitles.has(String(event.summary || '').trim().toLocaleLowerCase());\n  if (isRecurring && titleIsExcluded) return false;\n\n  if (event.start.date && event.end && event.end.date) {\n    const startDate = event.start.date;\n    const lastRealDate = addDaysToDateStr(event.end.date, -1);\n    if (lastRealDate > startDate) {\n      if (currentDate !== startDate && currentDate !== lastRealDate) return false;\n    }\n    return true;\n  }\n\n  if (event.start.dateTime && event.end && event.end.dateTime) {\n    const startDateStr = getParisDateStr(event.start.dateTime);\n    const endDateStr = getParisDateStr(event.end.dateTime);\n    if (endDateStr !== startDateStr) {\n      if (currentDate !== startDateStr && currentDate !== endDateStr) return false;\n    }\n    return true;\n  }\n\n  return true;\n});\nif (!events.length) return [];\nevents.sort((left, right) => new Date(left.start.dateTime || `${left.start.date}T00:00:00Z`).getTime() - new Date(right.start.dateTime || `${right.start.date}T00:00:00Z`).getTime());\nconst formatDate = (date) => new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${date}T12:00:00Z`));\nconst classify = (event) => {\n  const normalize = (value) => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase();\n  const title = normalize(event.summary);\n  const calendar = normalize(event.calendar_name);\n  if (event.eventType === 'birthday' || /\\b(anniversaire|birthday)\\b/.test(title)) return 'birthday';\n  if (event.eventType === 'holiday' || /\\b(fetes?|jours? feries?|holidays?)\\b/.test(`${title} ${calendar}`)) return 'holiday';\n  return 'event';\n};\nconst lines = events.map((event) => {\n  const when = event.start.date\n    ? `${formatDate(event.start.date)} (journée entière)`\n    : new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(event.start.dateTime));\n  const location = event.location ? ` - ${event.location}` : '';\n  const line = `${when} · ${event.calendar_name} · ${event.summary || '(sans titre)'}${location}`;\n  const kind = classify(event);\n  if (kind === 'birthday') return `🎂 _${line}_`;\n  if (kind === 'holiday') return `🎉 _${line}_`;\n  return `📌 *${line}*`;\n});\nconst date = $('Préparer la journée').first().json.date;\nconst dateLabel = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${date}T12:00:00Z`));\nreturn [{ json: { text: `📅 *Événements du ${dateLabel} :*\\n${lines.join('\\n')}` } }];"
+      }
+    },
+    {
+      "id": "0753e950-65cc-449d-9009-d4b4f0b3d39f",
+      "name": "Préparer le message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        -272
+      ],
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{ json: { text: input.text } }];"
+      }
+    },
+    {
+      "id": "36c0ff63-f266-4f22-8f25-56980005686d",
+      "name": "Résoudre le groupe MyBot Home",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "alwaysOutputData": true,
+      "position": [
+        2768,
+        -272
+      ],
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "VvTklXsTyzaCUEDz",
+          "mode": "list",
+          "cachedResultName": "whatsapp_ group_name",
+          "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/VvTklXsTyzaCUEDz"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "group_name",
+              "keyValue": "MyBot Home"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b04b9194-2885-4ad3-9e6e-6fa1daed1920",
+      "name": "Valider le groupe et le message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2992,
+        -272
+      ],
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json || {}).filter((row) => String(row.remoteJid || '').trim());\nif (rows.length !== 1) throw new Error(`Groupe MyBot Home introuvable ou ambigu dans whatsapp_group_name (${rows.length} résultat(s)).`);\nconst recipient = String(rows[0].remoteJid).trim();\nif (!recipient.endsWith('@g.us')) throw new Error('Le remoteJid de MyBot Home n’est pas un identifiant de groupe valide.');\nconst text = $('Préparer le message').first().json.text;\nreturn [{ json: { recipient, text, delay: 0 } }];"
+      }
+    },
+    {
+      "id": "56aa5f02-7fed-4db3-82eb-02db970ab034",
+      "name": "Envoyer dans MyBot Home",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3216,
+        -272
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.recipient, text: $json.text, delay: $json.delay } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "95c22ce2-5f60-462e-b8e6-3e52554021c4",
+      "name": "Semaine 7h30, weekend 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        976,
+        -272
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * 1-5"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 6,0"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Préparer la journée": {
+      "main": [
+        [
+          {
+            "node": "Google - Lister calendriers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister calendriers": {
+      "main": [
+        [
+          {
+            "node": "Sélectionner tous les calendriers lisibles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sélectionner tous les calendriers lisibles": {
+      "main": [
+        [
+          {
+            "node": "Google - Lister les événements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister les événements": {
+      "main": [
+        [
+          {
+            "node": "Associer le calendrier aux événements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associer le calendrier aux événements": {
+      "main": [
+        [
+          {
+            "node": "Composer le récapitulatif (sans récurrences exclues)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Composer le récapitulatif (sans récurrences exclues)": {
+      "main": [
+        [
+          {
+            "node": "Préparer le message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le message": {
+      "main": [
+        [
+          {
+            "node": "Résoudre le groupe MyBot Home",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résoudre le groupe MyBot Home": {
+      "main": [
+        [
+          {
+            "node": "Valider le groupe et le message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider le groupe et le message": {
+      "main": [
+        [
+          {
+            "node": "Envoyer dans MyBot Home",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Semaine 7h30, weekend 9h": {
+      "main": [
+        [
+          {
+            "node": "Préparer la journée",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Europe/Paris",
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "id": "kZR18LCXez7NF3Pz",
+  "tags": []
+}

@@ -1,0 +1,575 @@
+{
+  "id": "BqrSXyi4nge1McJW",
+  "name": "Tool - Consulter agenda",
+  "description": "",
+  "active": true,
+  "activeVersionId": "e1e29aa5-6f37-4b00-b470-16479653a86f",
+  "createdAt": "2026-09-25T22:48:05.754Z",
+  "updatedAt": "2026-09-26T10:03:35.990Z",
+  "isArchived": false,
+  "versionId": "e1e29aa5-6f37-4b00-b470-16479653a86f",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-consulter-agenda",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a0bd0cc3-672c-47d5-bc30-bc56c6834409",
+      "name": "Webhook - Consulter Agenda",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        128
+      ],
+      "webhookId": "dst1-consulter-agenda"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "consulter_agenda"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Liste les événements d'un calendrier pour aujourd'hui, demain, cette semaine ou une date précise. Reçoit un calendar_id obtenu via resoudre_calendrier; sans calendar_id, utilise primary. Ne pas appeler sans période explicitement demandée. Retourne event_id et calendar_id à réutiliser tels quels pour modifier, supprimer ou gérer les rappels."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"periode\":{\"type\":\"string\",\"enum\":[\"aujourd_hui\",\"demain\",\"semaine\",\"date_precise\"]},\"date\":{\"type\":\"string\",\"description\":\"Date ISO 8601 obligatoire si periode=date_precise.\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant obtenu via resoudre_calendrier. Défaut: primary.\"}},\"required\":[\"periode\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "c9f66060-1f35-4d0f-aa9f-01d09ce01bd4",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -640,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json.body||$json; const p=String(x.periode||''); const day=d=>{d=new Date(d);d.setHours(0,0,0,0);return d}; const end=d=>{d=day(d);d.setHours(23,59,59,999);return d}; let a,b,label; const n=new Date(); if(p==='aujourd_hui'){a=day(n);b=end(n);label=\"aujourd'hui\"} else if(p==='demain'){n.setDate(n.getDate()+1);a=day(n);b=end(n);label='demain'} else if(p==='semaine'){a=day(n);b=end(new Date(n.getTime()+7*86400000));label='cette semaine'} else if(p==='date_precise'&&x.date){a=day(x.date);b=end(x.date);label=x.date} else { return [{json:{error:true,message:'Période invalide, ou champ date absent pour date_precise.'}}]; } return [{json:{calendar_id:x.calendar_id||'primary',timeMin:a.toISOString(),timeMax:b.toISOString(),periode:label}}];"
+      },
+      "id": "fe36928e-9b3f-42de-a556-1d0fb03fcb4f",
+      "name": "Calculer période",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -416,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b72b61a4-23b4-4f9e-abfd-72c4e4ab1edb",
+      "name": "Erreur periode ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "e25ef6ad-a40d-44cb-b395-f79ec479001e",
+      "name": "Reponse erreur periode",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": "={{$json.calendar_id}}",
+        "timeMin": "={{$json.timeMin}}",
+        "timeMax": "={{$json.timeMax}}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "9a4792aa-3362-4da2-8457-cf28679b2f92",
+      "name": "Google - Lister événements",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        208
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx=$('Calculer période').first().json; const evenements=$input.all().map(i=>i.json).map(e=>({event_id:e.id,calendar_id:ctx.calendar_id,titre:e.summary||'(sans titre)',debut:(e.start&&(e.start.dateTime||e.start.date)),fin:(e.end&&(e.end.dateTime||e.end.date)),lieu:e.location||null,rappels_minutes:((e.reminders&&e.reminders.overrides)||[]).map(r=>r.minutes)}));return [{json:{success:true,periode:ctx.periode,calendar_id:ctx.calendar_id,nombre_evenements:evenements.length,evenements}}];"
+      },
+      "id": "9678e540-d6c7-4abf-830b-e3a0d0a11b2c",
+      "name": "Formater événements",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "ff0451cd-56b4-45c4-b09e-425c2a4964aa",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        416,
+        208
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Consulter Agenda": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Calculer période",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculer période": {
+      "main": [
+        [
+          {
+            "node": "Erreur periode ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur periode ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur periode",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google - Lister événements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister événements": {
+      "main": [
+        [
+          {
+            "node": "Formater événements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater événements": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "BqrSXyi4nge1McJW",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:48:05.756Z",
+      "updatedAt": "2026-09-25T22:48:05.756Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "e1e29aa5-6f37-4b00-b470-16479653a86f",
+    "workflowId": "BqrSXyi4nge1McJW",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-consulter-agenda",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "a0bd0cc3-672c-47d5-bc30-bc56c6834409",
+        "name": "Webhook - Consulter Agenda",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -864,
+          128
+        ],
+        "webhookId": "dst1-consulter-agenda"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "consulter_agenda"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Liste les événements d'un calendrier pour aujourd'hui, demain, cette semaine ou une date précise. Reçoit un calendar_id obtenu via resoudre_calendrier; sans calendar_id, utilise primary. Ne pas appeler sans période explicitement demandée. Retourne event_id et calendar_id à réutiliser tels quels pour modifier, supprimer ou gérer les rappels."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"periode\":{\"type\":\"string\",\"enum\":[\"aujourd_hui\",\"demain\",\"semaine\",\"date_precise\"]},\"date\":{\"type\":\"string\",\"description\":\"Date ISO 8601 obligatoire si periode=date_precise.\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant obtenu via resoudre_calendrier. Défaut: primary.\"}},\"required\":[\"periode\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "false"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "c9f66060-1f35-4d0f-aa9f-01d09ce01bd4",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -640,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const x=$json.body||$json; const p=String(x.periode||''); const day=d=>{d=new Date(d);d.setHours(0,0,0,0);return d}; const end=d=>{d=day(d);d.setHours(23,59,59,999);return d}; let a,b,label; const n=new Date(); if(p==='aujourd_hui'){a=day(n);b=end(n);label=\"aujourd'hui\"} else if(p==='demain'){n.setDate(n.getDate()+1);a=day(n);b=end(n);label='demain'} else if(p==='semaine'){a=day(n);b=end(new Date(n.getTime()+7*86400000));label='cette semaine'} else if(p==='date_precise'&&x.date){a=day(x.date);b=end(x.date);label=x.date} else { return [{json:{error:true,message:'Période invalide, ou champ date absent pour date_precise.'}}]; } return [{json:{calendar_id:x.calendar_id||'primary',timeMin:a.toISOString(),timeMax:b.toISOString(),periode:label}}];"
+        },
+        "id": "fe36928e-9b3f-42de-a556-1d0fb03fcb4f",
+        "name": "Calculer période",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -416,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "b72b61a4-23b4-4f9e-abfd-72c4e4ab1edb",
+        "name": "Erreur periode ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -208,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "e25ef6ad-a40d-44cb-b395-f79ec479001e",
+        "name": "Reponse erreur periode",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "calendar": "={{$json.calendar_id}}",
+          "timeMin": "={{$json.timeMin}}",
+          "timeMax": "={{$json.timeMax}}",
+          "options": {
+            "orderBy": "startTime"
+          }
+        },
+        "id": "9a4792aa-3362-4da2-8457-cf28679b2f92",
+        "name": "Google - Lister événements",
+        "type": "n8n-nodes-base.googleCalendar",
+        "typeVersion": 1.3,
+        "position": [
+          0,
+          208
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const ctx=$('Calculer période').first().json; const evenements=$input.all().map(i=>i.json).map(e=>({event_id:e.id,calendar_id:ctx.calendar_id,titre:e.summary||'(sans titre)',debut:(e.start&&(e.start.dateTime||e.start.date)),fin:(e.end&&(e.end.dateTime||e.end.date)),lieu:e.location||null,rappels_minutes:((e.reminders&&e.reminders.overrides)||[]).map(r=>r.minutes)}));return [{json:{success:true,periode:ctx.periode,calendar_id:ctx.calendar_id,nombre_evenements:evenements.length,evenements}}];"
+        },
+        "id": "9678e540-d6c7-4abf-830b-e3a0d0a11b2c",
+        "name": "Formater événements",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          208,
+          208
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "ff0451cd-56b4-45c4-b09e-425c2a4964aa",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          416,
+          208
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Consulter Agenda": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Calculer période",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Calculer période": {
+        "main": [
+          [
+            {
+              "node": "Erreur periode ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur periode ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur periode",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Google - Lister événements",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Lister événements": {
+        "main": [
+          [
+            {
+              "node": "Formater événements",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Formater événements": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version e1e29aa5",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:03:35.991Z",
+    "updatedAt": "2026-09-26T10:03:40.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 394,
+        "workflowId": "BqrSXyi4nge1McJW",
+        "versionId": "e1e29aa5-6f37-4b00-b470-16479653a86f",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:03:40.616Z"
+      }
+    ]
+  }
+}

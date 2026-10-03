@@ -1,0 +1,959 @@
+{
+  "id": "2HZWz7Gar4IyaurG",
+  "name": "Tool - Gérer rappels rendez-vous",
+  "description": "",
+  "active": true,
+  "activeVersionId": "da8a20e2-45b5-458c-9dfb-65913e6719b3",
+  "createdAt": "2026-09-25T22:50:34.814Z",
+  "updatedAt": "2026-09-26T10:02:49.484Z",
+  "isArchived": false,
+  "versionId": "da8a20e2-45b5-458c-9dfb-65913e6719b3",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-gerer-rappels-rdv",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "affb0bbe-d999-4066-84e4-7ae393376d7f",
+      "name": "Webhook - Gerer Rappels",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        -32
+      ],
+      "webhookId": "dst1-gerer-rappels-rdv"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "gerer_rappels_rdv"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Liste, ajoute ou supprime un rappel d'un rendez-vous Google Calendar sans modifier son titre, ses horaires ou son lieu. Requiert event_id et idéalement calendar_id issus de consulter_agenda. action=lister ne modifie rien; ajouter et supprimer requièrent une confirmation explicite."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"event_id\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de consulter_agenda; défaut primary.\"},\"action\":{\"type\":\"string\",\"enum\":[\"lister\",\"ajouter\",\"supprimer\"]},\"minutes_avant\":{\"type\":\"integer\",\"description\":\"Obligatoire pour ajouter ou supprimer.\"}},\"required\":[\"event_id\",\"action\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "1ab46c50-bf77-429d-9fd0-9603ea90f1cc",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -112,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json.body||$json;if(!String(x.event_id||'').trim())return [{json:{error:true,message:\"event_id est obligatoire.\"}}];if(!['lister','ajouter','supprimer'].includes(x.action))return [{json:{error:true,message:\"action doit être lister, ajouter ou supprimer.\"}}];if(['ajouter','supprimer'].includes(x.action)&&(!Number.isInteger(x.minutes_avant)||x.minutes_avant<0))return [{json:{error:true,message:\"minutes_avant doit être un entier positif ou nul.\"}}];return [{json:{event_id:String(x.event_id).trim(),calendar_id:x.calendar_id||'primary',action:x.action,minutes_avant:x.minutes_avant}}];"
+      },
+      "id": "cd800bc4-03f4-49d1-ae96-619cf4d878c3",
+      "name": "Valider paramètres",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3f90f421-413a-495b-873d-458701916139",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "173d9fcc-5e54-4481-9c57-600c07ea2c01",
+      "name": "Reponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        528,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "options": {}
+      },
+      "id": "9b804e06-c44e-4623-beb0-b7346c46e735",
+      "name": "Google - Lire événement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        64
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const c=$('Valider paramètres').first().json;const current=($json.reminders&&$json.reminders.overrides)||[];const mins=current.map(x=>x.minutes);if(c.action==='lister')return [{json:{direct:true,success:true,message:mins.length?`Rappels : ${mins.join(', ')} minute(s) avant.`:'Aucun rappel personnalisé.',event_id:c.event_id,calendar_id:c.calendar_id,rappels_minutes:mins}}];if(c.action==='ajouter'){if(mins.includes(c.minutes_avant))return [{json:{direct:true,success:true,message:`Le rappel de ${c.minutes_avant} minutes existe déjà.`,event_id:c.event_id,calendar_id:c.calendar_id,rappels_minutes:mins}}];return [{json:{direct:false,event_id:c.event_id,calendar_id:c.calendar_id,message:`Rappel de ${c.minutes_avant} minute(s) ajouté.`,patch:{reminders:{useDefault:false,overrides:[...current,{method:'popup',minutes:c.minutes_avant}]}}}}];}const kept=current.filter(x=>x.minutes!==c.minutes_avant);if(kept.length===current.length)return [{json:{error:true,message:`Aucun rappel de ${c.minutes_avant} minutes n'existe.`}}];return [{json:{direct:false,event_id:c.event_id,calendar_id:c.calendar_id,message:`Rappel de ${c.minutes_avant} minute(s) supprimé.`,patch:{reminders:kept.length?{useDefault:false,overrides:kept}:{useDefault:true}}}}];"
+      },
+      "id": "ffafdad5-9871-4115-b9fb-385113902e18",
+      "name": "Préparer rappels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "200eed6a-4162-4c84-849f-01dc7a741480",
+      "name": "Erreur preparation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        944,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "48cc5e4d-9e41-48ad-89a5-363257508d4a",
+      "name": "Reponse erreur preparation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1152,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{$json.direct}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "73cbf922-5334-4575-b66f-d22c685753ab",
+      "name": "Réponse directe ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "2e292caf-fefd-4dcb-9740-a3976c534a64",
+      "name": "Reponse directe",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {}
+      },
+      "id": "73a80c12-e9cb-48c5-8db7-9ae6531d6457",
+      "name": "Google - Mettre à jour rappels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        256
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const e=$json;const c=$('Préparer rappels').first().json;return [{json:{success:true,message:c.message,event_id:c.event_id,calendar_id:c.calendar_id,rappels_minutes:((e.reminders&&e.reminders.overrides)||[]).map(x=>x.minutes)}}];"
+      },
+      "id": "1d093570-a145-4c68-8ad7-b90febc27d99",
+      "name": "Retour rappels modifiés",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "9789e6c4-c6a1-4235-910a-1b93a5b70990",
+      "name": "Reponse finale",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1776,
+        256
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Gerer Rappels": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider paramètres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider paramètres": {
+      "main": [
+        [
+          {
+            "node": "Erreur de validation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google - Lire événement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lire événement": {
+      "main": [
+        [
+          {
+            "node": "Préparer rappels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer rappels": {
+      "main": [
+        [
+          {
+            "node": "Erreur preparation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur preparation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur preparation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse directe ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse directe ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse directe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google - Mettre à jour rappels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Mettre à jour rappels": {
+      "main": [
+        [
+          {
+            "node": "Retour rappels modifiés",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retour rappels modifiés": {
+      "main": [
+        [
+          {
+            "node": "Reponse finale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "2HZWz7Gar4IyaurG",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:50:34.815Z",
+      "updatedAt": "2026-09-25T22:50:34.815Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "da8a20e2-45b5-458c-9dfb-65913e6719b3",
+    "workflowId": "2HZWz7Gar4IyaurG",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-gerer-rappels-rdv",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "affb0bbe-d999-4066-84e4-7ae393376d7f",
+        "name": "Webhook - Gerer Rappels",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -336,
+          -32
+        ],
+        "webhookId": "dst1-gerer-rappels-rdv"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "gerer_rappels_rdv"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Liste, ajoute ou supprime un rappel d'un rendez-vous Google Calendar sans modifier son titre, ses horaires ou son lieu. Requiert event_id et idéalement calendar_id issus de consulter_agenda. action=lister ne modifie rien; ajouter et supprimer requièrent une confirmation explicite."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"event_id\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de consulter_agenda; défaut primary.\"},\"action\":{\"type\":\"string\",\"enum\":[\"lister\",\"ajouter\",\"supprimer\"]},\"minutes_avant\":{\"type\":\"integer\",\"description\":\"Obligatoire pour ajouter ou supprimer.\"}},\"required\":[\"event_id\",\"action\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "true"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "1ab46c50-bf77-429d-9fd0-9603ea90f1cc",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -112,
+          -32
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const x=$json.body||$json;if(!String(x.event_id||'').trim())return [{json:{error:true,message:\"event_id est obligatoire.\"}}];if(!['lister','ajouter','supprimer'].includes(x.action))return [{json:{error:true,message:\"action doit être lister, ajouter ou supprimer.\"}}];if(['ajouter','supprimer'].includes(x.action)&&(!Number.isInteger(x.minutes_avant)||x.minutes_avant<0))return [{json:{error:true,message:\"minutes_avant doit être un entier positif ou nul.\"}}];return [{json:{event_id:String(x.event_id).trim(),calendar_id:x.calendar_id||'primary',action:x.action,minutes_avant:x.minutes_avant}}];"
+        },
+        "id": "cd800bc4-03f4-49d1-ae96-619cf4d878c3",
+        "name": "Valider paramètres",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          112,
+          -32
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "3f90f421-413a-495b-873d-458701916139",
+        "name": "Erreur de validation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          320,
+          -32
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "173d9fcc-5e54-4481-9c57-600c07ea2c01",
+        "name": "Reponse erreur validation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          528,
+          -144
+        ]
+      },
+      {
+        "parameters": {
+          "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "options": {}
+        },
+        "id": "9b804e06-c44e-4623-beb0-b7346c46e735",
+        "name": "Google - Lire événement",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          528,
+          64
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const c=$('Valider paramètres').first().json;const current=($json.reminders&&$json.reminders.overrides)||[];const mins=current.map(x=>x.minutes);if(c.action==='lister')return [{json:{direct:true,success:true,message:mins.length?`Rappels : ${mins.join(', ')} minute(s) avant.`:'Aucun rappel personnalisé.',event_id:c.event_id,calendar_id:c.calendar_id,rappels_minutes:mins}}];if(c.action==='ajouter'){if(mins.includes(c.minutes_avant))return [{json:{direct:true,success:true,message:`Le rappel de ${c.minutes_avant} minutes existe déjà.`,event_id:c.event_id,calendar_id:c.calendar_id,rappels_minutes:mins}}];return [{json:{direct:false,event_id:c.event_id,calendar_id:c.calendar_id,message:`Rappel de ${c.minutes_avant} minute(s) ajouté.`,patch:{reminders:{useDefault:false,overrides:[...current,{method:'popup',minutes:c.minutes_avant}]}}}}];}const kept=current.filter(x=>x.minutes!==c.minutes_avant);if(kept.length===current.length)return [{json:{error:true,message:`Aucun rappel de ${c.minutes_avant} minutes n'existe.`}}];return [{json:{direct:false,event_id:c.event_id,calendar_id:c.calendar_id,message:`Rappel de ${c.minutes_avant} minute(s) supprimé.`,patch:{reminders:kept.length?{useDefault:false,overrides:kept}:{useDefault:true}}}}];"
+        },
+        "id": "ffafdad5-9871-4115-b9fb-385113902e18",
+        "name": "Préparer rappels",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          736,
+          64
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "200eed6a-4162-4c84-849f-01dc7a741480",
+        "name": "Erreur preparation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          944,
+          64
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "48cc5e4d-9e41-48ad-89a5-363257508d4a",
+        "name": "Reponse erreur preparation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1152,
+          -64
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "1",
+                "leftValue": "={{$json.direct}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "73cbf922-5334-4575-b66f-d22c685753ab",
+        "name": "Réponse directe ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1152,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "2e292caf-fefd-4dcb-9740-a3976c534a64",
+        "name": "Reponse directe",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1360,
+          16
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.patch) }}",
+          "options": {}
+        },
+        "id": "73a80c12-e9cb-48c5-8db7-9ae6531d6457",
+        "name": "Google - Mettre à jour rappels",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1360,
+          256
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const e=$json;const c=$('Préparer rappels').first().json;return [{json:{success:true,message:c.message,event_id:c.event_id,calendar_id:c.calendar_id,rappels_minutes:((e.reminders&&e.reminders.overrides)||[]).map(x=>x.minutes)}}];"
+        },
+        "id": "1d093570-a145-4c68-8ad7-b90febc27d99",
+        "name": "Retour rappels modifiés",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1568,
+          256
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "9789e6c4-c6a1-4235-910a-1b93a5b70990",
+        "name": "Reponse finale",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1776,
+          256
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Gerer Rappels": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Valider paramètres",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valider paramètres": {
+        "main": [
+          [
+            {
+              "node": "Erreur de validation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de validation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur validation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Google - Lire événement",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Lire événement": {
+        "main": [
+          [
+            {
+              "node": "Préparer rappels",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Préparer rappels": {
+        "main": [
+          [
+            {
+              "node": "Erreur preparation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur preparation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur preparation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Réponse directe ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Réponse directe ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse directe",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Google - Mettre à jour rappels",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Mettre à jour rappels": {
+        "main": [
+          [
+            {
+              "node": "Retour rappels modifiés",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retour rappels modifiés": {
+        "main": [
+          [
+            {
+              "node": "Reponse finale",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version da8a20e2",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:02:49.489Z",
+    "updatedAt": "2026-09-26T10:03:00.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 392,
+        "workflowId": "2HZWz7Gar4IyaurG",
+        "versionId": "da8a20e2-45b5-458c-9dfb-65913e6719b3",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:03:00.711Z"
+      }
+    ]
+  }
+}

@@ -19,7 +19,109 @@
     },
     {
       "parameters": {
-        "jsCode": "const bodyData = $json.body?.data || {};\nconst key = bodyData.key || {};\n\nconst remoteJid = String(key.remoteJid || '');\nconst isFromMe = key.fromMe === true;\nconst source = String(bodyData.source || '').trim().toLowerCase();\n\nconst messageType = bodyData.messageType || $json.body?.messages?.records?.[0]?.messageType || '';\nconst messageText = String(\n  bodyData.message?.conversation ||\n  bodyData.message?.extendedTextMessage?.text ||\n  ''\n).trim();\n\nconst phone = remoteJid.endsWith('@s.whatsapp.net')\n  ? remoteJid.replace(/[^0-9]/g, '')\n  : '';\n\nconst isTextMessage = Boolean(messageText);\nconst isStatus = remoteJid.endsWith('@status');\n\n// Les messages ecrits manuellement depuis le telephone du compte\n// connecte a Evolution API remontent avec fromMe=true et source=android.\nconst isManualMessageFromOwner = isFromMe === true && source === 'android';\n\nreturn [{\n  json: {\n    phone,\n    remoteJid,\n    isFromMe,\n    source,\n    participant: String(key.participant || ''),\n    addressingMode: String(key.addressingMode || ''),\n    pushName: String(bodyData.pushName || ''),\n    messageType,\n    messageText,\n    isTextMessage,\n    isStatus,\n    isManualMessageFromOwner,\n    processMessage: Boolean(remoteJid) && isTextMessage && !isStatus,\n    body: $json.body\n  }\n}];"
+        "jsCode": "const item = $input.first().json;\nconst bodyData = item.body?.data || {};\nconst messageType = bodyData.messageType || item.body?.messages?.records?.[0]?.messageType || '';\n\nreturn [{\n  json: {\n    ...item,\n    _dst1IsAudio: messageType === 'audioMessage' || Boolean(bodyData.message?.audioMessage)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3920,
+        560
+      ],
+      "id": "d12da06b-dc95-42ec-b89e-e00d38624f28",
+      "name": "Préfiltrer note vocale"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dst1-audio-route",
+              "leftValue": "={{ $json._dst1IsAudio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3680,
+        560
+      ],
+      "id": "7d1088ea-09e1-4fd4-bca2-0f17b21e27cc",
+      "name": "Est une note vocale ?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst data = item.body?.data || {};\nconst audioMessage = data.message?.audioMessage || {};\n\nlet base64String = audioMessage.base64 || audioMessage.media || data.base64 || '';\n\nif (!base64String) {\n  const apiKey = $env.EVOLUTION_API_KEY;\n  const baseUrl = $env.EVOLUTION_BASEURL;\n  const instance = $env.EVOLUTION_INSTANCE;\n\n  let evoResponse;\n  try {\n    evoResponse = await this.helpers.httpRequest({\n      method: 'POST',\n      url: `${baseUrl}/chat/getBase64FromMediaMessage/${instance}`,\n      headers: { apikey: apiKey, 'Content-Type': 'application/json' },\n      body: { message: { key: data.key, message: data.message }, convertToMp3: true },\n      json: true\n    });\n  } catch (err) {\n    evoResponse = await this.helpers.httpRequest({\n      method: 'POST',\n      url: `${baseUrl}/message/getBase64FromMediaMessage/${instance}`,\n      headers: { apikey: apiKey, 'Content-Type': 'application/json' },\n      body: { message: { key: data.key, message: data.message }, convertToMp3: true },\n      json: true\n    });\n  }\n\n  base64String = evoResponse?.base64 || evoResponse?.media || '';\n}\n\nif (base64String.includes(',')) {\n  base64String = base64String.split(',')[1];\n}\n\nif (!base64String) {\n  throw new Error(\"Impossible d'obtenir les donnees audio depuis le message ou Evolution API.\");\n}\n\nreturn [{\n  json: item,\n  binary: {\n    data: { data: base64String, mimeType: 'audio/mp3', fileName: 'audio.mp3', fileExtension: 'mp3' }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3440,
+        480
+      ],
+      "id": "d865e4f1-98c5-4c60-9b23-20583922ad8e",
+      "name": "Déchiffrer audio Evolution"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHISPER_BASEURL }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "base"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3200,
+        480
+      ],
+      "id": "401ac453-74f4-409c-bc8d-06e86f203bd8",
+      "name": "Whisper - Transcrire note vocale"
+    },
+    {
+      "parameters": {
+        "jsCode": "const transcribedText = String($json.text || '').trim();\nif (!transcribedText) {\n  throw new Error('Whisper n’a retourne aucune transcription exploitable.');\n}\n\nconst original = $('Préfiltrer note vocale').first().json;\nreturn [{ json: { ...original, transcribedText } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2960,
+        480
+      ],
+      "id": "4718fef6-3e57-493e-90fa-d58d3624baac",
+      "name": "Réinjecter transcription audio"
+    },
+    {
+      "parameters": {
+        "jsCode": "const bodyData = $json.body?.data || {};\nconst key = bodyData.key || {};\n\nconst remoteJid = String(key.remoteJid || '');\nconst isFromMe = key.fromMe === true;\nconst source = String(bodyData.source || '').trim().toLowerCase();\n\nconst messageType = bodyData.messageType || $json.body?.messages?.records?.[0]?.messageType || '';\nconst messageText = String(\n  $json.transcribedText ||\n  bodyData.message?.conversation ||\n  bodyData.message?.extendedTextMessage?.text ||\n  ''\n).trim();\n\nconst phone = remoteJid.endsWith('@s.whatsapp.net')\n  ? remoteJid.replace(/[^0-9]/g, '')\n  : '';\n\nconst isTextMessage = Boolean(messageText);\nconst isStatus = remoteJid.endsWith('@status');\n\n// Les messages ecrits manuellement depuis le telephone du compte\n// connecte a Evolution API remontent avec fromMe=true et source=android.\nconst isManualMessageFromOwner = isFromMe === true && source === 'android';\n\nreturn [{\n  json: {\n    phone,\n    remoteJid,\n    isFromMe,\n    source,\n    participant: String(key.participant || ''),\n    addressingMode: String(key.addressingMode || ''),\n    pushName: String(bodyData.pushName || ''),\n    messageType,\n    messageText,\n    isTextMessage,\n    isStatus,\n    isManualMessageFromOwner,\n    processMessage: Boolean(remoteJid) && isTextMessage && !isStatus,\n    body: $json.body\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -331,6 +433,68 @@
   "pinData": {},
   "connections": {
     "Réception Message WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Préfiltrer note vocale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préfiltrer note vocale": {
+      "main": [
+        [
+          {
+            "node": "Est une note vocale ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Est une note vocale ?": {
+      "main": [
+        [
+          {
+            "node": "Déchiffrer audio Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Préparation & Normalisation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Déchiffrer audio Evolution": {
+      "main": [
+        [
+          {
+            "node": "Whisper - Transcrire note vocale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper - Transcrire note vocale": {
+      "main": [
+        [
+          {
+            "node": "Réinjecter transcription audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réinjecter transcription audio": {
       "main": [
         [
           {

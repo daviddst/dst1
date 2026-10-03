@@ -1,0 +1,247 @@
+{
+  "name": "Tool - Modifier contact Google",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-modifier-contact-google",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e25f05a2-dc6c-46e9-8d4f-e6be6c02f3f1",
+      "name": "Webhook - Modifier contact",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-720, 320],
+      "webhookId": "dst1-modifier-contact-google"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "modifier_contact_google"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Modifie un contact Google en ne touchant qu'aux champs explicitement demandés. Utilise le resource_name obtenu via rechercher_contacts_google. Avant tout appel, présente à l'utilisateur le contact ciblé et le récapitulatif exact des champs et valeurs à modifier, puis attends son accord explicite. N'appelle cet outil qu'après cet accord; en cas de refus, n'effectue aucune modification. Pour chaque champ fourni, updates contient la valeur complète souhaitée au format Google People API; les champs omis restent inchangés. Les listes doivent contenir toutes les valeurs à conserver. Tous les champs de contact modifiables par Google People API sont acceptés."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"resource_name\":{\"type\":\"string\",\"description\":\"Identifiant people/... retourné par rechercher_contacts_google.\"},\"updates\":{\"type\":\"object\",\"description\":\"Objet Google People API contenant un ou plusieurs champs de contact modifiables et leurs valeurs complètes souhaitées.\",\"additionalProperties\":true}},\"required\":[\"resource_name\",\"updates\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "3a3c1cde-565e-4f9d-81ac-39d769512663",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-496, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json.body || $json;\nconst resourceName = String(input.resource_name || '').trim();\nconst updates = input.updates;\nconst allowedFields = new Set([\n  'addresses', 'biographies', 'birthdays', 'calendarUrls', 'clientData',\n  'emailAddresses', 'events', 'externalIds', 'genders', 'imClients',\n  'interests', 'locales', 'locations', 'memberships', 'miscKeywords',\n  'names', 'nicknames', 'occupations', 'organizations', 'phoneNumbers',\n  'relations', 'sipAddresses', 'urls', 'userDefined'\n]);\n\nif (!/^people\\/[^/]+$/.test(resourceName)) {\n  return [{ json: { error: true, message: \"resource_name doit être un identifiant people/... obtenu depuis Google Contacts.\" } }];\n}\nif (!updates || typeof updates !== 'object' || Array.isArray(updates)) {\n  return [{ json: { error: true, message: \"updates doit être un objet contenant les champs à modifier.\" } }];\n}\nconst fields = Object.keys(updates);\nif (fields.length === 0) {\n  return [{ json: { error: true, message: 'Au moins un champ à modifier est requis.' } }];\n}\nconst unsupported = fields.filter(field => !allowedFields.has(field));\nif (unsupported.length) {\n  return [{ json: { error: true, message: `Champ(s) non modifiable(s) par Google People API : ${unsupported.join(', ')}.` } }];\n}\nif (fields.some(field => updates[field] === null)) {\n  return [{ json: { error: true, message: 'Utilise une valeur complète ou une liste vide pour effacer un champ, pas null.' } }];\n}\n\nreturn [{ json: { resource_name: resourceName, updates, update_person_fields: fields.join(',') } }];"
+      },
+      "id": "d9d6ab4f-7b7f-49b3-b81a-0e6c3a029577",
+      "name": "Valider la demande",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-272, 320]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "contact-validation-error",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {"type": "boolean", "operation": "true"}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "315261dc-f6c8-45be-b742-2bc98166f286",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-48, 320]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {"responseCode": 400}
+      },
+      "id": "553cbf95-c86c-499f-ae31-3210152b31e4",
+      "name": "Réponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [176, 144]
+    },
+    {
+      "parameters": {
+        "url": "=https://people.googleapis.com/v1/{{$json.resource_name}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleContactsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "personFields",
+              "value": "addresses,biographies,birthdays,calendarUrls,clientData,emailAddresses,events,externalIds,genders,imClients,interests,locales,locations,memberships,miscKeywords,names,nicknames,occupations,organizations,phoneNumbers,relations,sipAddresses,urls,userDefined,metadata"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7cc221e4-d90d-4c02-8f97-3a85c98b25b1",
+      "name": "Google - Lire contact et ETag",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [176, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Valider la demande').first().json;\nconst current = $json;\nconst etag = current.etag || current.metadata?.sources?.find(source => source.type === 'CONTACT')?.etag;\n\nif (!etag) {\n  return [{ json: { error: true, message: \"Impossible de récupérer l'ETag du contact; aucune modification n'a été envoyée.\" } }];\n}\n\nreturn [{\n  json: {\n    resource_name: request.resource_name,\n    update_person_fields: request.update_person_fields,\n    person: { resourceName: request.resource_name, etag, ...request.updates }\n  }\n}];"
+      },
+      "id": "bfcd2e86-d902-4439-ae4c-35c7a10f68d5",
+      "name": "Préparer la mise à jour",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "contact-etag-error",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {"type": "boolean", "operation": "true"}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "68ff7ac8-d0e5-456a-9848-9f65e7a18d19",
+      "name": "Erreur de préparation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [624, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {"responseCode": 400}
+      },
+      "id": "5f9cb267-98b7-4beb-813b-80e12d0611b2",
+      "name": "Réponse erreur préparation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [848, 224]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://people.googleapis.com/v1/{{$json.resource_name}}:updateContact",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleContactsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "updatePersonFields", "value": "={{$json.update_person_fields}}"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.person) }}",
+        "options": {}
+      },
+      "id": "55cd168f-3e42-4f56-8b2d-03b322e72bba",
+      "name": "Google - Modifier contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [848, 496]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Valider la demande').first().json;\nreturn [{ json: { success: true, message: 'Contact Google mis à jour.', resource_name: request.resource_name, updated_fields: request.update_person_fields.split(',') } }];"
+      },
+      "id": "47cef55c-44d7-4f0d-b6fa-218e9c92fed9",
+      "name": "Retour modification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1072, 496]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "b2c861a4-48bc-4b03-94a5-19ab1e1cb818",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1296, 496]
+    }
+  ],
+  "connections": {
+    "Webhook - Modifier contact": {"main": [[{"node": "ToolSchema", "type": "main", "index": 0}]]},
+    "ToolSchema": {"main": [[{"node": "Valider la demande", "type": "main", "index": 0}]]},
+    "Valider la demande": {"main": [[{"node": "Erreur de validation ?", "type": "main", "index": 0}]]},
+    "Erreur de validation ?": {
+      "main": [
+        [{"node": "Réponse erreur validation", "type": "main", "index": 0}],
+        [{"node": "Google - Lire contact et ETag", "type": "main", "index": 0}]
+      ]
+    },
+    "Google - Lire contact et ETag": {"main": [[{"node": "Préparer la mise à jour", "type": "main", "index": 0}]]},
+    "Préparer la mise à jour": {"main": [[{"node": "Erreur de préparation ?", "type": "main", "index": 0}]]},
+    "Erreur de préparation ?": {
+      "main": [
+        [{"node": "Réponse erreur préparation", "type": "main", "index": 0}],
+        [{"node": "Google - Modifier contact", "type": "main", "index": 0}]
+      ]
+    },
+    "Google - Modifier contact": {"main": [[{"node": "Retour modification", "type": "main", "index": 0}]]},
+    "Retour modification": {"main": [[{"node": "Réponse succès", "type": "main", "index": 0}]]}
+      },
+      "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "tags": [{"id": "18KYi7G55ilfzXmb", "name": "dst1-tool"}]
+}

@@ -1,0 +1,198 @@
+{
+  "id": "dst1-sortie-bacs",
+  "name": "Notification - Sortie des bacs",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 1"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 4"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 3"
+            }
+          ]
+        }
+      },
+      "id": "106df194-2a8b-4336-aab0-2a0d1174b9ab",
+      "name": "Lundi, mercredi et jeudi à 20h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const timeZone = 'Europe/Paris';\nconst now = new Date();\nconst parts = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);\nconst part = (name) => parts.find((value) => value.type === name).value;\nconst weekday = part('weekday');\nlet text;\nif (weekday === 'Monday') text = '🟤 *Sortir le bac marron (végétaux)*';\nelse if (weekday === 'Thursday') text = '🟢 *Sortir le bac vert (déchets)*';\nelse if (weekday === 'Wednesday') {\n  const date = `${part('year')}-${part('month')}-${part('day')}`;\n  const current = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)));\n  const anchor = Date.UTC(2026, 9, 7);\n  const daysSinceAnchor = Math.floor((current - anchor) / 86400000);\n  if (daysSinceAnchor < 0 || daysSinceAnchor % 14 !== 0) return [];\n  text = '🟡 *Sortir le bac jaune (recyclage)*';\n} else return [];\nreturn [{ json: { text } }];"
+      },
+      "id": "c1cb64c3-535d-42bb-8888-5ca6d2f07739",
+      "name": "Choisir le rappel du jour",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{ json: { text: input.text } }];"
+      },
+      "id": "874ab09e-9c4a-410c-b89f-5c20d4e24c11",
+      "name": "Préparer le message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "VvTklXsTyzaCUEDz",
+          "mode": "list",
+          "cachedResultName": "whatsapp_ group_name",
+          "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/VvTklXsTyzaCUEDz"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "group_name",
+              "keyValue": "MyBot Home"
+            }
+          ]
+        }
+      },
+      "id": "9eef830d-8d3a-461c-b1ee-49e1eb1a39ed",
+      "name": "Résoudre le groupe MyBot Home",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        672,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json || {}).filter((row) => String(row.remoteJid || '').trim());\nif (rows.length !== 1) throw new Error(`Groupe MyBot Home introuvable ou ambigu dans whatsapp_group_name (${rows.length} résultat(s)).`);\nconst recipient = String(rows[0].remoteJid).trim();\nif (!recipient.endsWith('@g.us')) throw new Error('Le remoteJid de MyBot Home n’est pas un identifiant de groupe valide.');\nconst text = $('Préparer le message').first().json.text;\nreturn [{ json: { recipient, text, delay: 0 } }];"
+      },
+      "id": "58719bf5-36d7-4ec4-98f5-80070e018415",
+      "name": "Valider le groupe et le message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.recipient, text: $json.text, delay: $json.delay } }}",
+        "options": {}
+      },
+      "id": "51d563d8-3575-4f88-bf12-0e818ae63a83",
+      "name": "Envoyer dans MyBot Home",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Lundi, mercredi et jeudi à 20h": {
+      "main": [
+        [
+          {
+            "node": "Choisir le rappel du jour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choisir le rappel du jour": {
+      "main": [
+        [
+          {
+            "node": "Préparer le message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le message": {
+      "main": [
+        [
+          {
+            "node": "Résoudre le groupe MyBot Home",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résoudre le groupe MyBot Home": {
+      "main": [
+        [
+          {
+            "node": "Valider le groupe et le message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider le groupe et le message": {
+      "main": [
+        [
+          {
+            "node": "Envoyer dans MyBot Home",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "staticData": null,
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,268 @@
+{
+  "id": "dst1-verifier-perturbations-rer-d",
+  "name": "Tool - Prochains trains RER D",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-verifier-perturbations-rer-d",
+        "responseMode": "responseNode",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "name": "Webhook - Vérifier perturbations RER D",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "dst1-verifier-perturbations-rer-d"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "prochains_trains_rer_d"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Donne les prochains trains RER D entre Yerres et Gare de Lyon, avec leur heure de départ, heure d'arrivée prévue et retards ou suppressions éventuels, pour l'heure à venir. Sens : Yerres vers Gare de Lyon (yerres_gare_de_lyon) ou Gare de Lyon vers Yerres (gare_de_lyon_yerres). Si l'utilisateur ne précise pas le sens, demande-le ; pour une demande « en ce moment » sans sens précisé, utilise Yerres vers Gare de Lyon le matin et Gare de Lyon vers Yerres l'après-midi. Les arrêts et la ligne sont déjà configurés."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"direction\":{\"type\":\"string\",\"enum\":[\"yerres_gare_de_lyon\",\"gare_de_lyon_yerres\",\"yerres_gare_de_lyon\",\"paris_yerres\"],\"description\":\"Sens demandé. Valeurs acceptées : yerres_gare_de_lyon, gare_de_lyon_yerres, yerres_gare_de_lyon, paris_yerres. Omettre seulement si l'utilisateur demande une vérification en ce moment sans préciser le sens : le Tool choisira selon l'heure de Paris.\"}},\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "54747cd9-a19a-49bc-82e1-1c8d1a3722a4",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json.body || $json;\nconst normalize = (value) => String(value || '').trim().toLocaleLowerCase().replace(/[\\s-]+/g, '_');\nconst aliases = {\n  yerres_gare_de_lyon: 'yerres_gare_de_lyon',\n  paris_yerres: 'gare_de_lyon_yerres',\n  yerres_vers_gare_de_lyon: 'yerres_gare_de_lyon',\n  gare_de_lyon_vers_yerres: 'gare_de_lyon_yerres'\n};\nlet direction = normalize(input.direction);\nif (direction && aliases[direction]) direction = aliases[direction];\nif (!direction) {\n  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());\n  const hour = Number(parts.find((part) => part.type === 'hour').value);\n  if (hour >= 5 && hour < 12) direction = 'yerres_gare_de_lyon';\n  else if (hour >= 12 && hour < 23) direction = 'gare_de_lyon_yerres';\n  else throw new Error('Précise le sens : Yerres vers Gare de Lyon ou Gare de Lyon vers Yerres.');\n}\nconst routes = {\n  yerres_gare_de_lyon: { label: 'Yerres vers Gare de Lyon', monitoring_ref: 'IDFM:monomodalStopPlace:43226', monitoring_name: 'Yerres', destination_ref: 'IDFM:monomodalStopPlace:470195', destination_name: 'Gare de Lyon' },\n  gare_de_lyon_yerres: { label: 'Gare de Lyon vers Yerres', monitoring_ref: 'IDFM:monomodalStopPlace:470195', monitoring_name: 'Gare de Lyon', destination_ref: 'IDFM:monomodalStopPlace:43226', destination_name: 'Yerres' }\n};\nconst route = routes[direction];\nif (!route) throw new Error(\"direction doit être 'yerres_gare_de_lyon' ou 'gare_de_lyon_yerres'.\");\nconst start = new Date();\nconst end = new Date(start.getTime() + 60 * 60 * 1000);\nreturn [{ json: { direction, direction_label: route.label, monitoring_ref: route.monitoring_ref, monitoring_name: route.monitoring_name, destination_ref: route.destination_ref, destination_name: route.destination_name, line_ref: 'IDFM:C01728', window_start: start.toISOString(), window_end: end.toISOString(), window_minutes: 60, time_zone: 'Europe/Paris' } }];"
+      },
+      "id": "54a60c3f-21b0-493d-a11d-a73f3c93c6d8",
+      "name": "Valider paramètres et calculer l'heure à venir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://prim.iledefrance-mobilites.fr/marketplace/requete-ligne",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "LineRef",
+              "value": "STIF:Line::C01728:"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.PRIM_IDFMOBILITE_API_KEY}}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a7746410-2614-4651-a986-d18b93b02af7",
+      "name": "PRIM - StopMonitoring RER D",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $(\"Valider paramètres et calculer l'heure à venir\").first().json;\nconst scalar = (value) => Array.isArray(value) ? (value.length ? scalar(value[0]) : '') : value && typeof value === 'object' && 'value' in value ? scalar(value.value) : value == null ? '' : String(value);\nconst normalizeStopRef = (value) => { const ref = scalar(value); const match = ref.match(/^STIF:StopArea:SP:(\\d+):$/); return match ? `IDFM:monomodalStopPlace:${match[1]}` : ref; };\nconst delivery = $json.Siri && $json.Siri.ServiceDelivery;\nconst frames = delivery && delivery.EstimatedTimetableDelivery || [];\nconst journeys = [];\nfor (const frame of frames) {\n  const versionFrames = frame.EstimatedJourneyVersionFrame || [];\n  for (const versionFrame of versionFrames) {\n    const vehicleJourneys = versionFrame.EstimatedVehicleJourney || [];\n    for (const journey of vehicleJourneys) journeys.push(journey);\n  }\n}\nrequest.line_ref = 'STIF:Line::C01728:';\nreturn journeys.map((journey) => {\n  const rawCalls = journey.EstimatedCalls && journey.EstimatedCalls.EstimatedCall;\n  const callList = Array.isArray(rawCalls) ? rawCalls : rawCalls ? [rawCalls] : [];\n  const calls = callList.map((call) => { return { ...call, StopPointRef: normalizeStopRef(call.StopPointRef), StopPointName: scalar(call.DestinationDisplay) }; });\n  const monitored = calls.find((call) => scalar(call.StopPointRef) === request.monitoring_ref);\n  if (!monitored) return null;\n  return { json: { MonitoredVehicleJourney: { LineRef: request.line_ref, DestinationName: scalar(journey.DestinationName), DirectionName: scalar(journey.DirectionName), MonitoredCall: monitored, OnwardCalls: { OnwardCall: calls } } } };\n}).filter(Boolean);"
+      },
+      "id": "b3d2a6d4-49f5-4e8c-a8b6-4cf5ec8d8a11",
+      "name": "Adapter SIRI ligne vers analyse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $(\"Valider paramètres et calculer l'heure à venir\").first().json;\nconst scalar = (value) => Array.isArray(value) ? (value.length ? scalar(value[0]) : '') : value && typeof value === 'object' && 'value' in value ? scalar(value.value) : value == null ? '' : String(value);\nconst normalize = (value) => scalar(value).normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase();\nconst toMillis = (value) => { const parsed = Date.parse(scalar(value)); return Number.isFinite(parsed) ? parsed : null; };\nconst nowMillis = Date.now();\nconst results = items.map((item) => {\n  const journey = item.json.MonitoredVehicleJourney || {};\n  const call = journey.MonitoredCall || {};\n  const calls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;\n  const onwardCalls = Array.isArray(calls) ? calls : calls ? [calls] : [];\n  const destinationCall = onwardCalls.find((stop) => scalar(stop.StopPointRef) === request.destination_ref);\n  if (!destinationCall) return null;\n  const departure = call.ExpectedDepartureTime || call.AimedDepartureTime || call.ExpectedArrivalTime || call.AimedArrivalTime;\n  const departureMillis = toMillis(departure);\n  const arrival = destinationCall.ExpectedArrivalTime || destinationCall.AimedArrivalTime || null;\n  const arrivalMillis = toMillis(arrival);\n  const start = Date.parse(request.window_start);\n  const end = Date.parse(request.window_end);\n  // drop if departure not parseable or outside requested window or already passed now\n  if (departureMillis === null) return null;\n  if (departureMillis < start || departureMillis >= end) return null;\n  if (departureMillis < nowMillis) return null;\n  // if arrival is before departure, keep the journey but nullify arrival (data inconsistency)\n  let arrivee_prevue = arrival || null;\n  if (arrivalMillis !== null && arrivalMillis < departureMillis) arrivee_prevue = null;\n  const delay = scalar(call.Delay || journey.Delay);\n  const status = normalize(call.DepartureStatus || call.ArrivalStatus || journey.ProgressStatus || '');\n  const cancelled = Boolean(call.Cancellation || call.Cancelled || /cancel|cancell|suppress|annul/.test(status));\n  return { train: scalar(journey.DestinationName || journey.DirectionName), depart: scalar(departure), arrivee_prevue, statut: cancelled ? 'suppression' : delay || /retard|delay/.test(status) ? 'retard' : 'normal', retard: delay || null };\n}).filter(Boolean);\nconst perturbations = results.filter((train) => train.statut !== 'normal');\nreturn [{ json: { success: true, perturbation: perturbations.length > 0, status: perturbations.length ? 'perturbation' : results.length ? 'aucune_perturbation_detectee' : 'aucun_train_correspondant', direction: request.direction, direction_label: request.direction_label, trajet: { depart: request.monitoring_name, arrivee: request.destination_name }, plage: { debut: request.window_start, fin: request.window_end, duree_minutes: request.window_minutes, fuseau: request.time_zone }, nombre_trains: results.length, prochains_trains: results, perturbations } }];"
+      },
+      "id": "d4e87c8e-0e6a-4c75-95f1-c8d10c693c2a",
+      "name": "Analyser trajets SIRI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const request = $('Valider paramètres et calculer l'heure à venir').first().json;\nconst root = $json.Siri || $json;\nif ($json.error || ($json.message && !$json.Siri)) throw new Error(`Erreur PRIM : ${String($json.message || $json.error)}`);\nconst visits = [];\nconst seen = new Set();\nconst walk = (value) => {\n  if (!value || typeof value !== 'object') return;\n  if (Array.isArray(value)) { for (const item of value) walk(item); return; }\n  if (value.MonitoredVehicleJourney && !seen.has(value)) { visits.push(value); seen.add(value); }\n  for (const child of Object.values(value)) walk(child);\n};\nwalk(root);\nconst scalar = (value) => Array.isArray(value) ? (value.length ? scalar(value[0]) : '') : value && typeof value === 'object' && 'value' in value ? scalar(value.value) : value == null ? '' : String(value);\nconst normalize = (value) => scalar(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase();\nconst toMillis = (value) => { const parsed = Date.parse(scalar(value)); return Number.isFinite(parsed) ? parsed : null; };\nconst durationSeconds = (value) => {\n  const text = scalar(value);\n  if (!text) return 0;\n  if (/^-?\\d+(?:\\.\\d+)?$/.test(text)) return Number(text);\n  const match = text.match(/^(-)?P(?:(\\d+(?:\\.\\d+)?)D)?(?:T(?:(\\d+(?:\\.\\d+)?)H)?(?:(\\d+(?:\\.\\d+)?)M)?(?:(\\d+(?:\\.\\d+)?)S)?)?$/i);\n  if (!match) return 0;\n  const seconds = Number(match[2] || 0) * 86400 + Number(match[3] || 0) * 3600 + Number(match[4] || 0) * 60 + Number(match[5] || 0);\n  return match[1] ? -seconds : seconds;\n};\nconst start = Date.parse(request.window_start);\nconst end = Date.parse(request.window_end);\nconst results = visits.map((visit) => {\n  const journey = visit.MonitoredVehicleJourney || {};\n  const call = journey.MonitoredCall || {};\n  if (scalar(journey.LineRef) !== request.line_ref) return null;\n  const onwardRaw = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;\n  const onwardCalls = Array.isArray(onwardRaw) ? onwardRaw : onwardRaw ? [onwardRaw] : [];\n  const destinationCall = onwardCalls.find((stop) => scalar(stop.StopPointRef) === request.destination_ref || normalize(stop.StopPointName).includes(normalize(request.destination_name)));\n  if (!destinationCall) return null;\n  const departureValue = call.ExpectedDepartureTime || call.AimedDepartureTime || call.ExpectedArrivalTime || call.AimedArrivalTime;\n  const departureMillis = toMillis(departureValue);\n  if (departureMillis === null || departureMillis < start || departureMillis >= end) return null;\n  const destination = scalar(destinationCall.StopPointName || destinationCall.StopPointRef) || request.destination_name;\n  const status = scalar(call.DepartureStatus || call.ArrivalStatus || journey.ProgressStatus || visit.Status);\n  const statusText = normalize(status);\n  const cancellation = Boolean(visit.Cancellation || visit.JourneyCancellation || call.Cancellation || call.Cancelled || call.IsCancelled) || /cancel|cancell|suppress|annul|withdraw|supprim/.test(statusText);\n  const expected = toMillis(call.ExpectedDepartureTime || call.ExpectedArrivalTime);\n  const aimed = toMillis(call.AimedDepartureTime || call.AimedArrivalTime);\n  const delaySeconds = Math.max(durationSeconds(call.Delay || journey.Delay), expected !== null && aimed !== null ? Math.round((expected - aimed) / 1000) : 0);\n  const delayed = !cancellation && (delaySeconds > 0 || /delay|retard/.test(statusText));\n  const arrivalValue = destinationCall.ExpectedArrivalTime || destinationCall.AimedArrivalTime || destinationCall.ExpectedDepartureTime || destinationCall.AimedDepartureTime;\n  return { train: scalar(journey.DestinationName || journey.DirectionName), depart: scalar(departureValue), arrivee_prevue: scalar(arrivalValue) || null, statut: cancellation ? 'suppression' : delayed ? 'retard' : 'normal', retard_secondes: delayed && delaySeconds > 0 ? delaySeconds : null, retard: delayed ? scalar(call.Delay || journey.Delay) || (delaySeconds > 0 ? `${Math.ceil(delaySeconds / 60)} min` : 'retard annoncé') : null, vehicle_journey_ref: scalar(journey.VehicleJourneyRef) || null };\n}).filter(Boolean);\nconst perturbations = results.filter((train) => train.statut === 'suppression' || train.statut === 'retard');\nreturn [{ json: { success: true, perturbation: perturbations.length > 0, status: perturbations.length ? 'perturbation' : results.length ? 'aucune_perturbation_detectee' : 'aucun_train_correspondant', direction: request.direction, direction_label: request.direction_label, trajet: { depart: request.monitoring_name, arrivee: request.destination_name }, plage: { debut: request.window_start, fin: request.window_end, duree_minutes: request.window_minutes, fuseau: request.time_zone }, nombre_trains: results.length, prochains_trains: results, perturbations, message: results.length ? `${results.length} prochain(s) train(s) vers ${request.destination_name} trouvé(s).` : `Aucun train vers ${request.destination_name} trouvé dans l'heure à venir.` } }];"
+      },
+      "id": "7b247abf-bc58-41f3-98ee-a479ce876d0f",
+      "name": "Analyser retards et suppressions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "position": [
+        896,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "ab61d109-229d-443a-9ae5-a23074dba9e4",
+      "name": "Répondre au demandeur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Vérifier perturbations RER D": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider paramètres et calculer l'heure à venir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider paramètres et calculer l'heure à venir": {
+      "main": [
+        [
+          {
+            "node": "PRIM - StopMonitoring RER D",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PRIM - StopMonitoring RER D": {
+      "main": [
+        [
+          {
+            "node": "Adapter SIRI ligne vers analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adapter SIRI ligne vers analyse": {
+      "main": [
+        [
+          {
+            "node": "Analyser trajets SIRI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyser trajets SIRI": {
+      "main": [
+        [
+          {
+            "node": "Répondre au demandeur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyser retards et suppressions": {
+      "main": [
+        [
+          {
+            "node": "Répondre au demandeur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "staticData": null,
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,349 @@
+{
+  "id": "dst1-agenda-hebdomadaire",
+  "name": "Notification - Agenda hebdomadaire",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "4a560c28-eec4-4af1-bde9-0c6a1ecdecd1",
+      "name": "Chaque dimanche à 20h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const timeZone = 'Europe/Paris';\nconst parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());\nconst part = (name) => parts.find((value) => value.type === name).value;\nconst today = `${part('year')}-${part('month')}-${part('day')}`;\nconst addDays = (date, count) => { const value = new Date(`${date}T00:00:00Z`); value.setUTCDate(value.getUTCDate() + count); return value.toISOString().slice(0, 10); };\nconst offsetAt = (date) => {\n  const value = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' }).formatToParts(date).find((item) => item.type === 'timeZoneName').value;\n  const match = value.match(/^GMT(?:([+-])(\\d{2}):(\\d{2}))?$/);\n  if (!match) throw new Error(`Fuseau horaire non reconnu : ${value}`);\n  return match[1] ? (match[1] === '+' ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3])) * 60000 : 0;\n};\nconst midnight = (date) => {\n  const [year, month, day] = date.split('-').map(Number);\n  const target = Date.UTC(year, month - 1, day);\n  let guess = target;\n  for (let attempt = 0; attempt < 3; attempt += 1) {\n    const next = target - offsetAt(new Date(guess));\n    if (next === guess) break;\n    guess = next;\n  }\n  return new Date(guess).toISOString();\n};\nconst weekday = new Date(`${today}T00:00:00Z`).getUTCDay();\nconst daysUntilMonday = (8 - weekday) % 7;\nconst startDate = addDays(today, daysUntilMonday);\nconst endDate = addDays(startDate, 7);\nreturn [{ json: { timeMin: midnight(startDate), timeMax: midnight(endDate), startDate, endDate: addDays(endDate, -1) } }];"
+      },
+      "id": "f25ca8f2-29ab-426c-9411-7baf827f9639",
+      "name": "Préparer la semaine à venir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "options": {}
+      },
+      "id": "fb304655-2a2d-450c-9a40-3a0adf3045e1",
+      "name": "Google - Lister calendriers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const calendars = $json.items || [];\nconst find = (predicate, label) => {\n  const matches = calendars.filter(predicate);\n  if (matches.length !== 1) throw new Error(`Calendrier ${label} introuvable ou ambigu (${matches.length} résultat(s)).`);\n  return matches[0];\n};\nconst primary = find((calendar) => calendar.primary === true, 'principal');\nconst maud = find((calendar) => String(calendar.summary || '').toLocaleLowerCase().includes('maud'), 'Maud');\nconst shared = find((calendar) => String(calendar.summary || '').toLocaleLowerCase().includes('commun'), 'commun');\nif (new Set([primary.id, maud.id, shared.id]).size !== 3) throw new Error('Les calendriers principal, Maud et commun doivent être distincts.');\nconst range = $('Préparer la semaine à venir').first().json;\nreturn [primary, maud, shared].map((calendar) => ({ json: { calendar_id: calendar.id, calendar_name: calendar.summary || (calendar.primary ? 'Principal' : 'Sans nom'), timeMin: range.timeMin, timeMax: range.timeMax } }));"
+      },
+      "id": "11254c6f-013a-4ee8-89c5-7f88a9612528",
+      "name": "Sélectionner principal, Maud et commun",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": "={{$json.calendar_id}}",
+        "timeMin": "={{$json.timeMin}}",
+        "timeMax": "={{$json.timeMax}}",
+        "options": {
+          "orderBy": "startTime"
+        }
+      },
+      "id": "fc615fc3-d8c8-4394-bf4c-24fa14b5d235",
+      "name": "Google - Lister les événements",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9ed04792-dd30-4e43-b973-78a61355d3da",
+              "name": "calendar_id",
+              "type": "string",
+              "value": "={{ $('Sélectionner principal, Maud et commun').item.json.calendar_id }}"
+            },
+            {
+              "id": "348c75b1-5162-4638-a14d-51c8a4a18f47",
+              "name": "calendar_name",
+              "type": "string",
+              "value": "={{ $('Sélectionner principal, Maud et commun').item.json.calendar_name }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8d79e5b9-5fc3-4c6b-bfad-c50b7624d3e0",
+      "name": "Associer le calendrier aux événements",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.all().map((item) => item.json).filter((event) => event && event.start);\nconst range = $('Préparer la semaine à venir').first().json;\nconst formatDate = (date) => new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${date}T12:00:00Z`));\nconst formatStart = (event) => event.start.date\n  ? `${formatDate(event.start.date)} (journée entière)`\n  : new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(event.start.dateTime));\nconst classify = (event) => {\n  const normalize = (value) => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase();\n  const title = normalize(event.summary);\n  const calendar = normalize(event.calendar_name);\n  if (event.eventType === 'birthday' || /\\b(anniversaire|birthday)\\b/.test(title)) return 'birthday';\n  if (event.eventType === 'holiday' || /\\b(fetes?|jours? feries?|holidays?)\\b/.test(`${title} ${calendar}`)) return 'holiday';\n  return 'event';\n};\nevents.sort((left, right) => new Date(left.start.dateTime || `${left.start.date}T00:00:00Z`).getTime() - new Date(right.start.dateTime || `${right.start.date}T00:00:00Z`).getTime());\nconst lines = events.map((event) => {\n  const location = event.location ? ` - ${event.location}` : '';\n  const line = `${formatStart(event)} · ${event.calendar_name} · ${event.summary || '(sans titre)'}${location}`;\n  const kind = classify(event);\n  if (kind === 'birthday') return `🎂 _${line}_`;\n  if (kind === 'holiday') return `🎉 _${line}_`;\n  return `📌 *${line}*`;\n});\nconst heading = `📅 *Agenda de la semaine du ${formatDate(range.startDate)} au ${formatDate(range.endDate)} :*`;\nconst text = `${heading}\\n${lines.length ? lines.join('\\n') : '📌 *Aucun événement prévu.*'}`;\nreturn [{ json: { text } }];"
+      },
+      "id": "725fc961-6df8-4ea5-b630-3db50e647a86",
+      "name": "Composer le récapitulatif",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{ json: { text: input.text } }];"
+      },
+      "id": "c46e91a1-975d-4c71-8e59-49fae41fb249",
+      "name": "Préparer le message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "VvTklXsTyzaCUEDz",
+          "mode": "list",
+          "cachedResultName": "whatsapp_ group_name",
+          "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/VvTklXsTyzaCUEDz"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "group_name",
+              "keyValue": "MyBot Home"
+            }
+          ]
+        }
+      },
+      "id": "8d57b1ad-eb3a-412c-b3d6-8e995558c79c",
+      "name": "Résoudre le groupe MyBot Home",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map((item) => item.json || {}).filter((row) => String(row.remoteJid || '').trim());\nif (rows.length !== 1) throw new Error(`Groupe MyBot Home introuvable ou ambigu dans whatsapp_group_name (${rows.length} résultat(s)).`);\nconst recipient = String(rows[0].remoteJid).trim();\nif (!recipient.endsWith('@g.us')) throw new Error('Le remoteJid de MyBot Home n’est pas un identifiant de groupe valide.');\nconst text = $('Préparer le message').first().json.text;\nreturn [{ json: { recipient, text, delay: 0 } }];"
+      },
+      "id": "083e1255-7651-4de5-ac89-79f1b11ba9de",
+      "name": "Valider le groupe et le message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.recipient, text: $json.text, delay: $json.delay } }}",
+        "options": {}
+      },
+      "id": "6ece4085-8bf6-4078-8c4d-9ae4aa4e8ff6",
+      "name": "Envoyer dans MyBot Home",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Chaque dimanche à 20h": {
+      "main": [
+        [
+          {
+            "node": "Préparer la semaine à venir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer la semaine à venir": {
+      "main": [
+        [
+          {
+            "node": "Google - Lister calendriers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister calendriers": {
+      "main": [
+        [
+          {
+            "node": "Sélectionner principal, Maud et commun",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sélectionner principal, Maud et commun": {
+      "main": [
+        [
+          {
+            "node": "Google - Lister les événements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Lister les événements": {
+      "main": [
+        [
+          {
+            "node": "Associer le calendrier aux événements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associer le calendrier aux événements": {
+      "main": [
+        [
+          {
+            "node": "Composer le récapitulatif",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Composer le récapitulatif": {
+      "main": [
+        [
+          {
+            "node": "Préparer le message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le message": {
+      "main": [
+        [
+          {
+            "node": "Résoudre le groupe MyBot Home",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résoudre le groupe MyBot Home": {
+      "main": [
+        [
+          {
+            "node": "Valider le groupe et le message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider le groupe et le message": {
+      "main": [
+        [
+          {
+            "node": "Envoyer dans MyBot Home",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Paris"
+  },
+  "staticData": null,
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,571 @@
+{
+  "id": "dY4FijLNjgesTjGn",
+  "name": "Tool - Supprimer rendez-vous",
+  "description": "",
+  "active": true,
+  "activeVersionId": "713697c3-4158-42b1-962f-6f28d1e456a8",
+  "createdAt": "2026-09-25T22:50:06.120Z",
+  "updatedAt": "2026-09-26T10:26:08.378Z",
+  "isArchived": false,
+  "versionId": "713697c3-4158-42b1-962f-6f28d1e456a8",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-supprimer-rdv",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6c99094c-9efa-4510-8c71-7c26ef3b0492",
+      "name": "Webhook - Supprimer RDV",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        80
+      ],
+      "webhookId": "dst1-supprimer-rdv"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "tool_name",
+              "type": "string",
+              "value": "supprimer_rdv"
+            },
+            {
+              "id": "2",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Supprime definitivement un rendez-vous Google Calendar. Requiert event_id et idealement calendar_id issus de consulter_agenda. Action irreversible : demander confirmation explicite avant appel."
+            },
+            {
+              "id": "3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"event_id\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de consulter_agenda; defaut primary.\"}},\"required\":[\"event_id\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "4",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "ce7b250f-8d54-4646-b98a-91a06ee154d6",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -560,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json.body||$json;if(!String(x.event_id||'').trim())return [{json:{error:true,message:\"event_id est obligatoire.\"}}];return [{json:{event_id:String(x.event_id).trim(),calendar_id:x.calendar_id||'primary'}}];"
+      },
+      "id": "9950644f-61fd-4a8b-86a7-eb6f58528c8a",
+      "name": "Valider suppression",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1077b965-4715-4a70-a28b-4848d3dca54a",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "fc3eb75e-2000-4124-a78c-cb6f6a2aff6a",
+      "name": "Reponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "options": {}
+      },
+      "id": "173a700c-7835-4463-bb71-ee9d8ca5f01b",
+      "name": "Google - Supprimer evenement",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        80,
+        160
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "eCTasy50Xtp0gc2Y",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const c=$('Valider suppression').first().json;return [{json:{success:true,message:'Rendez-vous supprime.',event_id:c.event_id,calendar_id:c.calendar_id}}];"
+      },
+      "id": "78773e29-2336-4e58-9cf7-49fe2ecc3c7f",
+      "name": "Retour suppression",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "9ca5eea8-8165-4c84-abf8-2a787a5105d8",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Supprimer RDV": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider suppression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider suppression": {
+      "main": [
+        [
+          {
+            "node": "Erreur de validation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google - Supprimer evenement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google - Supprimer evenement": {
+      "main": [
+        [
+          {
+            "node": "Retour suppression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retour suppression": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "dY4FijLNjgesTjGn",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:50:06.121Z",
+      "updatedAt": "2026-09-25T22:50:06.121Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "713697c3-4158-42b1-962f-6f28d1e456a8",
+    "workflowId": "dY4FijLNjgesTjGn",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-supprimer-rdv",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "6c99094c-9efa-4510-8c71-7c26ef3b0492",
+        "name": "Webhook - Supprimer RDV",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -784,
+          80
+        ],
+        "webhookId": "dst1-supprimer-rdv"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "1",
+                "name": "tool_name",
+                "type": "string",
+                "value": "supprimer_rdv"
+              },
+              {
+                "id": "2",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Supprime definitivement un rendez-vous Google Calendar. Requiert event_id et idealement calendar_id issus de consulter_agenda. Action irreversible : demander confirmation explicite avant appel."
+              },
+              {
+                "id": "3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"event_id\":{\"type\":\"string\"},\"calendar_id\":{\"type\":\"string\",\"description\":\"Identifiant issu de consulter_agenda; defaut primary.\"}},\"required\":[\"event_id\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "4",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "true"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "ce7b250f-8d54-4646-b98a-91a06ee154d6",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -560,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const x=$json.body||$json;if(!String(x.event_id||'').trim())return [{json:{error:true,message:\"event_id est obligatoire.\"}}];return [{json:{event_id:String(x.event_id).trim(),calendar_id:x.calendar_id||'primary'}}];"
+        },
+        "id": "9950644f-61fd-4a8b-86a7-eb6f58528c8a",
+        "name": "Valider suppression",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -336,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "1077b965-4715-4a70-a28b-4848d3dca54a",
+        "name": "Erreur de validation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -128,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "fc3eb75e-2000-4124-a78c-cb6f6a2aff6a",
+        "name": "Reponse erreur validation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          80,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "method": "DELETE",
+          "url": "=https://www.googleapis.com/calendar/v3/calendars/{{$json.calendar_id}}/events/{{$json.event_id}}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleCalendarOAuth2Api",
+          "options": {}
+        },
+        "id": "173a700c-7835-4463-bb71-ee9d8ca5f01b",
+        "name": "Google - Supprimer evenement",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          80,
+          160
+        ],
+        "credentials": {
+          "googleCalendarOAuth2Api": {
+            "id": "eCTasy50Xtp0gc2Y",
+            "name": "Google Calendar account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const c=$('Valider suppression').first().json;return [{json:{success:true,message:'Rendez-vous supprime.',event_id:c.event_id,calendar_id:c.calendar_id}}];"
+        },
+        "id": "78773e29-2336-4e58-9cf7-49fe2ecc3c7f",
+        "name": "Retour suppression",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          288,
+          160
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "9ca5eea8-8165-4c84-abf8-2a787a5105d8",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          496,
+          160
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Supprimer RDV": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Valider suppression",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valider suppression": {
+        "main": [
+          [
+            {
+              "node": "Erreur de validation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de validation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur validation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Google - Supprimer evenement",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google - Supprimer evenement": {
+        "main": [
+          [
+            {
+              "node": "Retour suppression",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retour suppression": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 713697c3",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:26:08.379Z",
+    "updatedAt": "2026-09-26T10:26:13.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 402,
+        "workflowId": "dY4FijLNjgesTjGn",
+        "versionId": "713697c3-4158-42b1-962f-6f28d1e456a8",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:26:13.513Z"
+      }
+    ]
+  }
+}

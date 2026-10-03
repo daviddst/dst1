@@ -1,0 +1,719 @@
+{
+  "id": "hP9G994Nwk9U0fts",
+  "name": "Tool - Resoudre Groupe WhatsApp",
+  "description": "",
+  "active": true,
+  "activeVersionId": "8ed743a7-fba9-4f72-b1d9-a738d7d0b25d",
+  "createdAt": "2026-09-25T22:38:21.253Z",
+  "updatedAt": "2026-09-26T07:54:20.447Z",
+  "isArchived": false,
+  "versionId": "8ed743a7-fba9-4f72-b1d9-a738d7d0b25d",
+  "versionCounter": 4,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-resoudre-groupe-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2315b49c-0885-4f8c-b1a1-c8c30cd10602",
+      "name": "Webhook - Resoudre Groupe",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        -16
+      ],
+      "webhookId": "dst1-resoudre-groupe-whatsapp"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee4a85f5-1cd0-453c-83e0-17a1161fb93e",
+              "name": "tool_name",
+              "type": "string",
+              "value": "resoudre_groupe_whatsapp"
+            },
+            {
+              "id": "e644bf55-e510-49ea-89d9-18f4075d648a",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Resout le nom d'un groupe WhatsApp en son identifiant remoteJid, a partir de la Data Table n8n locale whatsapp_group_name. Utilise cet outil avant l'envoi d'un message dans un groupe WhatsApp. Le resultat remoteJid doit etre transmis a l'outil envoyer_message_whatsapp. Cet outil est en lecture seule."
+            },
+            {
+              "id": "29bb6dc3-a621-4d87-bbfb-e813e9d8dd0a",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"group_name\":{\"type\":\"string\",\"description\":\"Nom exact du groupe WhatsApp, tel qu'enregistre dans la colonne group_name de la Data Table n8n whatsapp_group_name.\"}},\"required\":[\"group_name\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "569359be-9d17-405c-af15-b0cbe2b52d82",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "e75f6208-cdce-4a71-8c8e-51f625cb6fb1",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -432,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst groupName = String(body.group_name ?? '').trim();\nif (!groupName) {\n  return [{ json: { error: true, message: \"Le parametre 'group_name' est obligatoire.\" } }];\n}\nreturn [{ json: { ...$json, group_name: groupName } }];"
+      },
+      "id": "1494e63b-d7ed-432a-9c13-c5752efa9f69",
+      "name": "Valider le nom du groupe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "24650b8b-2012-443e-9263-524f7a1782f6",
+      "name": "Erreur nom groupe ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "0d4d0230-b18e-4a07-bf28-0045d175d941",
+      "name": "Reponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "VvTklXsTyzaCUEDz",
+          "mode": "list",
+          "cachedResultName": "whatsapp_ group_name",
+          "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/VvTklXsTyzaCUEDz"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "group_name",
+              "keyValue": "={{ $('Valider le nom du groupe').first().json.group_name }}"
+            }
+          ]
+        }
+      },
+      "id": "e9133da9-cbcc-49f2-ad32-e7bfa0c06a5f",
+      "name": "Rechercher le groupe dans la Data Table",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        256,
+        80
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Valider le nom du groupe').first().json;\nconst groupName = input.group_name;\n\nconst matches = $input.all()\n  .map((item) => item.json ?? {})\n  .filter((row) => String(row.remoteJid ?? '').trim() !== '');\n\nif (matches.length === 0) {\n  return [{ json: { error: true, message: `Aucune association n'a ete trouvee pour le groupe \"${groupName}\" dans la Data Table whatsapp_group_name. Ajoutez une ligne avec les champs group_name et remoteJid.` } }];\n}\n\nconst row = matches[0];\nconst remoteJid = String(row.remoteJid).trim();\n\nif (!remoteJid.endsWith('@g.us')) {\n  return [{ json: { error: true, message: `Le remoteJid enregistre pour \"${groupName}\" est invalide : \"${remoteJid}\". Un identifiant de groupe WhatsApp doit se terminer par @g.us.` } }];\n}\n\nreturn [{ json: { success: true, group_name: groupName, remoteJid, recipient: remoteJid, message: `Groupe '${groupName}' resolu avec succes.`, duplicate_group_count: matches.length } }];"
+      },
+      "id": "bc191c09-7974-4421-af2a-f4f23a8688cd",
+      "name": "Retourner le remoteJid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1bb393c1-c0ef-4148-982d-c97eb134bf6b",
+      "name": "Groupe non trouve ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        704,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "6bacc619-8435-41b2-bd8c-525711829414",
+      "name": "Reponse erreur non trouve",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        928,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "8f42b9e6-a566-4ae8-a2ec-52337a90b7a2",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        928,
+        192
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Resoudre Groupe": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider le nom du groupe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider le nom du groupe": {
+      "main": [
+        [
+          {
+            "node": "Erreur nom groupe ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur nom groupe ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechercher le groupe dans la Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rechercher le groupe dans la Data Table": {
+      "main": [
+        [
+          {
+            "node": "Retourner le remoteJid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retourner le remoteJid": {
+      "main": [
+        [
+          {
+            "node": "Groupe non trouve ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groupe non trouve ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur non trouve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "hP9G994Nwk9U0fts",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:38:21.255Z",
+      "updatedAt": "2026-09-25T22:38:21.255Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "8ed743a7-fba9-4f72-b1d9-a738d7d0b25d",
+    "workflowId": "hP9G994Nwk9U0fts",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-resoudre-groupe-whatsapp",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "2315b49c-0885-4f8c-b1a1-c8c30cd10602",
+        "name": "Webhook - Resoudre Groupe",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -672,
+          -16
+        ],
+        "webhookId": "dst1-resoudre-groupe-whatsapp"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "ee4a85f5-1cd0-453c-83e0-17a1161fb93e",
+                "name": "tool_name",
+                "type": "string",
+                "value": "resoudre_groupe_whatsapp"
+              },
+              {
+                "id": "e644bf55-e510-49ea-89d9-18f4075d648a",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Resout le nom d'un groupe WhatsApp en son identifiant remoteJid, a partir de la Data Table n8n locale whatsapp_group_name. Utilise cet outil avant l'envoi d'un message dans un groupe WhatsApp. Le resultat remoteJid doit etre transmis a l'outil envoyer_message_whatsapp. Cet outil est en lecture seule."
+              },
+              {
+                "id": "29bb6dc3-a621-4d87-bbfb-e813e9d8dd0a",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"group_name\":{\"type\":\"string\",\"description\":\"Nom exact du groupe WhatsApp, tel qu'enregistre dans la colonne group_name de la Data Table n8n whatsapp_group_name.\"}},\"required\":[\"group_name\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "569359be-9d17-405c-af15-b0cbe2b52d82",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "false"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "e75f6208-cdce-4a71-8c8e-51f625cb6fb1",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -432,
+          -16
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst groupName = String(body.group_name ?? '').trim();\nif (!groupName) {\n  return [{ json: { error: true, message: \"Le parametre 'group_name' est obligatoire.\" } }];\n}\nreturn [{ json: { ...$json, group_name: groupName } }];"
+        },
+        "id": "1494e63b-d7ed-432a-9c13-c5752efa9f69",
+        "name": "Valider le nom du groupe",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -192,
+          -16
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "24650b8b-2012-443e-9263-524f7a1782f6",
+        "name": "Erreur nom groupe ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          48,
+          -16
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "0d4d0230-b18e-4a07-bf28-0045d175d941",
+        "name": "Reponse erreur validation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          256,
+          -128
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "dataTableId": {
+            "__rl": true,
+            "value": "VvTklXsTyzaCUEDz",
+            "mode": "list",
+            "cachedResultName": "whatsapp_ group_name",
+            "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/VvTklXsTyzaCUEDz"
+          },
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "group_name",
+                "keyValue": "={{ $('Valider le nom du groupe').first().json.group_name }}"
+              }
+            ]
+          }
+        },
+        "id": "e9133da9-cbcc-49f2-ad32-e7bfa0c06a5f",
+        "name": "Rechercher le groupe dans la Data Table",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1,
+        "position": [
+          256,
+          80
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $('Valider le nom du groupe').first().json;\nconst groupName = input.group_name;\n\nconst matches = $input.all()\n  .map((item) => item.json ?? {})\n  .filter((row) => String(row.remoteJid ?? '').trim() !== '');\n\nif (matches.length === 0) {\n  return [{ json: { error: true, message: `Aucune association n'a ete trouvee pour le groupe \"${groupName}\" dans la Data Table whatsapp_group_name. Ajoutez une ligne avec les champs group_name et remoteJid.` } }];\n}\n\nconst row = matches[0];\nconst remoteJid = String(row.remoteJid).trim();\n\nif (!remoteJid.endsWith('@g.us')) {\n  return [{ json: { error: true, message: `Le remoteJid enregistre pour \"${groupName}\" est invalide : \"${remoteJid}\". Un identifiant de groupe WhatsApp doit se terminer par @g.us.` } }];\n}\n\nreturn [{ json: { success: true, group_name: groupName, remoteJid, recipient: remoteJid, message: `Groupe '${groupName}' resolu avec succes.`, duplicate_group_count: matches.length } }];"
+        },
+        "id": "bc191c09-7974-4421-af2a-f4f23a8688cd",
+        "name": "Retourner le remoteJid",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "1bb393c1-c0ef-4148-982d-c97eb134bf6b",
+        "name": "Groupe non trouve ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          704,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 404
+          }
+        },
+        "id": "6bacc619-8435-41b2-bd8c-525711829414",
+        "name": "Reponse erreur non trouve",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          928,
+          -48
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "8f42b9e6-a566-4ae8-a2ec-52337a90b7a2",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          928,
+          192
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Resoudre Groupe": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Valider le nom du groupe",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valider le nom du groupe": {
+        "main": [
+          [
+            {
+              "node": "Erreur nom groupe ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur nom groupe ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur validation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Rechercher le groupe dans la Data Table",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rechercher le groupe dans la Data Table": {
+        "main": [
+          [
+            {
+              "node": "Retourner le remoteJid",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retourner le remoteJid": {
+        "main": [
+          [
+            {
+              "node": "Groupe non trouve ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Groupe non trouve ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur non trouve",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 8ed743a7",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T07:54:00.300Z",
+    "updatedAt": "2026-09-26T07:54:22.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 390,
+        "workflowId": "hP9G994Nwk9U0fts",
+        "versionId": "8ed743a7-fba9-4f72-b1d9-a738d7d0b25d",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T07:54:22.362Z"
+      }
+    ]
+  }
+}

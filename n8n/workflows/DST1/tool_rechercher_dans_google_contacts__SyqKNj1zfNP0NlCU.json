@@ -1,0 +1,611 @@
+{
+  "id": "SyqKNj1zfNP0NlCU",
+  "name": "Tool - Rechercher dans Google Contacts",
+  "description": "",
+  "active": true,
+  "activeVersionId": "6258a038-b531-4621-a52f-f41605115b1f",
+  "createdAt": "2026-09-25T22:00:51.292Z",
+  "updatedAt": "2026-09-26T10:27:29.658Z",
+  "isArchived": false,
+  "versionId": "6258a038-b531-4621-a52f-f41605115b1f",
+  "versionCounter": 15,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-rechercher-contacts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "9708056d-19ae-4821-8187-be7cb2e9bc29",
+      "name": "Webhook - Rechercher Contacts",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        336
+      ],
+      "webhookId": "dst1-rechercher-contacts"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b3b77e11-bd48-4191-a322-c47ef5b7c89e",
+              "name": "tool_name",
+              "type": "string",
+              "value": "rechercher_contacts_google"
+            },
+            {
+              "id": "0a440c1b-a6a6-47b9-85e8-91e39bfcdbb3",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Recherche des informations dans les contacts Google auxquels le compte connecte a acces. Utilise cet outil lorsqu'il faut retrouver les coordonnees d'une personne : nom, prenom, adresse e-mail, numero de telephone, adresse postale ou organisation. Fournis une requete aussi precise que possible. Cet outil est en lecture seule."
+            },
+            {
+              "id": "d91891d8-4121-46f2-aac2-e2d166df293d",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Texte de recherche dans Google Contacts : nom, prenom, adresse e-mail, numero de telephone, societe ou autre information connue.\"},\"max_results\":{\"type\":\"integer\",\"description\":\"Nombre maximal de contacts a retourner, entre 1 et 30. Utiliser 10 par defaut.\",\"default\":10}},\"required\":[\"query\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "f7c24bc4-1c1e-4559-bf0a-8ca5e3d1421f",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "9e07ecc8-9d0b-4fd7-9434-2646ad54be03",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -400,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst query = String(body.query ?? '').trim();\nconst maxResultsRaw = Number(body.max_results ?? 10);\n\nif (!query) {\n  return [{ json: { error: true, message: \"Le parametre 'query' est obligatoire.\" } }];\n}\nif (!Number.isInteger(maxResultsRaw) || maxResultsRaw < 1 || maxResultsRaw > 30) {\n  return [{ json: { error: true, message: \"Le parametre 'max_results' doit etre un entier compris entre 1 et 30.\" } }];\n}\n\nreturn [{ json: { ...body, query, max_results: maxResultsRaw } }];"
+      },
+      "id": "488e07c5-8c9c-4aad-bf85-9014c6062128",
+      "name": "Valider la recherche",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "29f54049-9c78-4bee-918e-fd9203d217dc",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        48,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "2ae9a65e-08ee-4cad-8263-4ff6980839f8",
+      "name": "Reponse erreur validation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        256,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://people.googleapis.com/v1/people:searchContacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleContactsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "readMask",
+              "value": "names,emailAddresses,phoneNumbers,addresses,organizations,biographies,urls"
+            },
+            {
+              "name": "sources",
+              "value": "READ_SOURCE_TYPE_CONTACT"
+            },
+            {
+              "name": "pageSize",
+              "value": "={{ $json.max_results }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "68b0c6dc-4327-4377-abfc-9f0cdc2a9ad1",
+      "name": "Rechercher dans Google Contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        256,
+        416
+      ],
+      "credentials": {
+        "googleContactsOAuth2Api": {
+          "id": "ia7ANu6QPm7y1tit",
+          "name": "Google Contacts david@xinus.net"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Valider la recherche').first().json;\nconst response = $json;\nconst results = Array.isArray(response.results) ? response.results : [];\n\nconst valueList = (values, key) => {\n  key = key || 'value';\n  if (!Array.isArray(values)) return [];\n  return values\n    .map((entry) => entry ? entry[key] : undefined)\n    .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')\n    .map((value) => String(value));\n};\n\nconst contacts = results.map((result) => {\n  const person = result.person || {};\n  const names = person.names || [];\n  const primaryName = names[0] || {};\n\n  const addressesRaw = person.addresses || [];\n  const addresses = addressesRaw.map((address) => ({\n    label: address.type || address.formattedType || null,\n    formatted: address.formattedValue || address.streetAddress || null\n  })).filter((address) => address.formatted);\n\n  const organizationsRaw = person.organizations || [];\n  const organizations = organizationsRaw.map((organization) => ({\n    name: organization.name || null,\n    title: organization.title || null\n  })).filter((organization) => organization.name || organization.title);\n\n  return {\n    resource_name: person.resourceName || null,\n    display_name: primaryName.displayName || null,\n    first_name: primaryName.givenName || null,\n    last_name: primaryName.familyName || null,\n    emails: valueList(person.emailAddresses),\n    phones: valueList(person.phoneNumbers),\n    addresses,\n    organizations,\n    biographies: valueList(person.biographies, 'value'),\n    urls: valueList(person.urls)\n  };\n});\n\nreturn [{\n  json: {\n    success: true,\n    query: input.query,\n    result_count: contacts.length,\n    contacts\n  }\n}];"
+      },
+      "id": "a188ab60-4169-4f3f-9c1c-d73b28c34862",
+      "name": "Normaliser les contacts trouves",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "aa5193b9-9fb4-4e7c-8b80-366875c154b4",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        416
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Rechercher Contacts": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider la recherche",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider la recherche": {
+      "main": [
+        [
+          {
+            "node": "Erreur de validation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur validation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechercher dans Google Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rechercher dans Google Contacts": {
+      "main": [
+        [
+          {
+            "node": "Normaliser les contacts trouves",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser les contacts trouves": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "SyqKNj1zfNP0NlCU",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T22:00:51.294Z",
+      "updatedAt": "2026-09-25T22:00:51.294Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "6258a038-b531-4621-a52f-f41605115b1f",
+    "workflowId": "SyqKNj1zfNP0NlCU",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-rechercher-contacts",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "9708056d-19ae-4821-8187-be7cb2e9bc29",
+        "name": "Webhook - Rechercher Contacts",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -640,
+          336
+        ],
+        "webhookId": "dst1-rechercher-contacts"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "b3b77e11-bd48-4191-a322-c47ef5b7c89e",
+                "name": "tool_name",
+                "type": "string",
+                "value": "rechercher_contacts_google"
+              },
+              {
+                "id": "0a440c1b-a6a6-47b9-85e8-91e39bfcdbb3",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Recherche des informations dans les contacts Google auxquels le compte connecte a acces. Utilise cet outil lorsqu'il faut retrouver les coordonnees d'une personne : nom, prenom, adresse e-mail, numero de telephone, adresse postale ou organisation. Fournis une requete aussi precise que possible. Cet outil est en lecture seule."
+              },
+              {
+                "id": "d91891d8-4121-46f2-aac2-e2d166df293d",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\",\"description\":\"Texte de recherche dans Google Contacts : nom, prenom, adresse e-mail, numero de telephone, societe ou autre information connue.\"},\"max_results\":{\"type\":\"integer\",\"description\":\"Nombre maximal de contacts a retourner, entre 1 et 30. Utiliser 10 par defaut.\",\"default\":10}},\"required\":[\"query\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "f7c24bc4-1c1e-4559-bf0a-8ca5e3d1421f",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "false"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "9e07ecc8-9d0b-4fd7-9434-2646ad54be03",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -400,
+          336
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = $json.body || $json;\nconst query = String(body.query ?? '').trim();\nconst maxResultsRaw = Number(body.max_results ?? 10);\n\nif (!query) {\n  return [{ json: { error: true, message: \"Le parametre 'query' est obligatoire.\" } }];\n}\nif (!Number.isInteger(maxResultsRaw) || maxResultsRaw < 1 || maxResultsRaw > 30) {\n  return [{ json: { error: true, message: \"Le parametre 'max_results' doit etre un entier compris entre 1 et 30.\" } }];\n}\n\nreturn [{ json: { ...body, query, max_results: maxResultsRaw } }];"
+        },
+        "id": "488e07c5-8c9c-4aad-bf85-9014c6062128",
+        "name": "Valider la recherche",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -176,
+          336
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "29f54049-9c78-4bee-918e-fd9203d217dc",
+        "name": "Erreur de validation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          48,
+          336
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "2ae9a65e-08ee-4cad-8263-4ff6980839f8",
+        "name": "Reponse erreur validation",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          256,
+          208
+        ]
+      },
+      {
+        "parameters": {
+          "url": "https://people.googleapis.com/v1/people:searchContacts",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "googleContactsOAuth2Api",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "query",
+                "value": "={{ $json.query }}"
+              },
+              {
+                "name": "readMask",
+                "value": "names,emailAddresses,phoneNumbers,addresses,organizations,biographies,urls"
+              },
+              {
+                "name": "sources",
+                "value": "READ_SOURCE_TYPE_CONTACT"
+              },
+              {
+                "name": "pageSize",
+                "value": "={{ $json.max_results }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "68b0c6dc-4327-4377-abfc-9f0cdc2a9ad1",
+        "name": "Rechercher dans Google Contacts",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          256,
+          416
+        ],
+        "credentials": {
+          "googleContactsOAuth2Api": {
+            "id": "ia7ANu6QPm7y1tit",
+            "name": "Google Contacts david@xinus.net"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $('Valider la recherche').first().json;\nconst response = $json;\nconst results = Array.isArray(response.results) ? response.results : [];\n\nconst valueList = (values, key) => {\n  key = key || 'value';\n  if (!Array.isArray(values)) return [];\n  return values\n    .map((entry) => entry ? entry[key] : undefined)\n    .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')\n    .map((value) => String(value));\n};\n\nconst contacts = results.map((result) => {\n  const person = result.person || {};\n  const names = person.names || [];\n  const primaryName = names[0] || {};\n\n  const addressesRaw = person.addresses || [];\n  const addresses = addressesRaw.map((address) => ({\n    label: address.type || address.formattedType || null,\n    formatted: address.formattedValue || address.streetAddress || null\n  })).filter((address) => address.formatted);\n\n  const organizationsRaw = person.organizations || [];\n  const organizations = organizationsRaw.map((organization) => ({\n    name: organization.name || null,\n    title: organization.title || null\n  })).filter((organization) => organization.name || organization.title);\n\n  return {\n    resource_name: person.resourceName || null,\n    display_name: primaryName.displayName || null,\n    first_name: primaryName.givenName || null,\n    last_name: primaryName.familyName || null,\n    emails: valueList(person.emailAddresses),\n    phones: valueList(person.phoneNumbers),\n    addresses,\n    organizations,\n    biographies: valueList(person.biographies, 'value'),\n    urls: valueList(person.urls)\n  };\n});\n\nreturn [{\n  json: {\n    success: true,\n    query: input.query,\n    result_count: contacts.length,\n    contacts\n  }\n}];"
+        },
+        "id": "a188ab60-4169-4f3f-9c1c-d73b28c34862",
+        "name": "Normaliser les contacts trouves",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          480,
+          416
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "aa5193b9-9fb4-4e7c-8b80-366875c154b4",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          704,
+          416
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Rechercher Contacts": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Valider la recherche",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valider la recherche": {
+        "main": [
+          [
+            {
+              "node": "Erreur de validation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de validation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur validation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Rechercher dans Google Contacts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Rechercher dans Google Contacts": {
+        "main": [
+          [
+            {
+              "node": "Normaliser les contacts trouves",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normaliser les contacts trouves": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 6258a038",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T10:27:29.659Z",
+    "updatedAt": "2026-09-26T10:27:33.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 406,
+        "workflowId": "SyqKNj1zfNP0NlCU",
+        "versionId": "6258a038-b531-4621-a52f-f41605115b1f",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T10:27:33.375Z"
+      }
+    ]
+  }
+}

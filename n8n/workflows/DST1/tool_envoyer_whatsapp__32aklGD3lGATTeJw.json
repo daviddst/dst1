@@ -1,0 +1,655 @@
+{
+  "id": "32aklGD3lGATTeJw",
+  "name": "Tool - Envoyer WhatsApp",
+  "description": "",
+  "active": true,
+  "activeVersionId": "5c5a58ae-8be6-4f03-b21e-08027cad5b64",
+  "createdAt": "2026-09-25T20:11:16.999Z",
+  "updatedAt": "2026-09-26T07:52:52.892Z",
+  "isArchived": false,
+  "versionId": "5c5a58ae-8be6-4f03-b21e-08027cad5b64",
+  "versionCounter": 3,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-envoyer-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5ecbcbd2-a231-434d-a43f-d544ff1b99e3",
+      "name": "Webhook - Envoyer WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -944,
+        128
+      ],
+      "webhookId": "dst1-envoyer-whatsapp"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c0e804bd-306f-455c-a605-f913e54a1db9",
+              "name": "tool_name",
+              "type": "string",
+              "value": "envoyer_message_whatsapp"
+            },
+            {
+              "id": "3c29e461-2b78-41cc-a948-061f477eeb4d",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Envoie un message texte WhatsApp via Evolution API a un contact ou a un groupe. Pour un contact, fournir son numero de telephone (format francais ou international). Pour un groupe, fournir le remoteJid retourne par l'outil resoudre_groupe_whatsapp. Utilise cet outil uniquement apres confirmation explicite de l'utilisateur."
+            },
+            {
+              "id": "15b02a67-a721-4056-b321-ece9801c3fd3",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{\"recipient\":{\"type\":\"string\",\"description\":\"Destinataire WhatsApp. Pour un contact : numero francais ou international, par exemple 0609414700, +33609414700 ou 33609414700. Pour un groupe : remoteJid se terminant par @g.us, fourni par resoudre_groupe_whatsapp.\"},\"text\":{\"type\":\"string\",\"description\":\"Texte du message WhatsApp a envoyer.\"},\"delay\":{\"type\":\"integer\",\"description\":\"Delai avant envoi en millisecondes. Utiliser 0 par defaut.\",\"default\":0}},\"required\":[\"recipient\",\"text\"],\"additionalProperties\":false}"
+            },
+            {
+              "id": "bc9b7eb3-12b9-41a3-a994-74d6517571be",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "true"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "c0ac1fe2-5880-4c25-9a68-f939c4f45750",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -704,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawRecipient = String($json.recipient ?? '').trim();\nconst text = String($json.text ?? '').trim();\nconst delay = Number($json.delay ?? 0);\n\nif (!rawRecipient) {\n  return [{ json: { error: true, message: \"Le parametre 'recipient' est obligatoire.\" } }];\n}\nif (!text) {\n  return [{ json: { error: true, message: \"Le parametre 'text' est obligatoire et ne peut pas etre vide.\" } }];\n}\nif (!Number.isInteger(delay) || delay < 0) {\n  return [{ json: { error: true, message: \"Le parametre 'delay' doit etre un entier positif ou egal a 0.\" } }];\n}\n\nlet recipient;\nlet recipientType;\n\nif (rawRecipient.endsWith('@g.us')) {\n  recipient = rawRecipient;\n  recipientType = 'group';\n} else {\n  recipient = rawRecipient.replace(/\\D/g, '');\n  if (recipient.startsWith('00')) { recipient = recipient.slice(2); }\n  if (/^0\\d{9}$/.test(recipient)) { recipient = `33${recipient.slice(1)}`; }\n  if (!/^[1-9]\\d{7,14}$/.test(recipient)) {\n    return [{ json: { error: true, message: `Numero WhatsApp invalide apres normalisation : \"${rawRecipient}\". Exemple valide : 33609414700.` } }];\n  }\n  recipientType = 'contact';\n}\n\nreturn [{ json: { ...$json, recipient_original: rawRecipient, recipient, recipient_type: recipientType, text, delay } }];"
+      },
+      "id": "ab19c3f2-bab8-49c5-8602-2a80c2390d1f",
+      "name": "Valider et normaliser le destinataire",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{$json.error}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0250eb97-7252-4b3b-b5e5-d4660edeee5f",
+      "name": "Erreur de validation ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.message } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "f47543d8-4f4a-46b4-8085-537169b566fb",
+      "name": "Reponse erreur",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { number: $json.recipient, text: $json.text, delay: $json.delay } }}",
+        "options": {}
+      },
+      "id": "30ca28c9-0d3c-4d51-9ad5-2accf986bf02",
+      "name": "Envoyer via Evolution API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "28cf179f-c808-42af-b5c3-0eb5d7b86f1c",
+              "name": "success",
+              "type": "boolean",
+              "value": true
+            },
+            {
+              "id": "24fdd034-a3bc-4eba-b778-4fae8ecd046c",
+              "name": "message",
+              "type": "string",
+              "value": "Message WhatsApp transmis a Evolution API."
+            },
+            {
+              "id": "a6dca09d-ca2f-4f6f-92d6-80143b641d01",
+              "name": "recipient",
+              "type": "string",
+              "value": "={{ $('Valider et normaliser le destinataire').first().json.recipient }}"
+            },
+            {
+              "id": "e58d4db7-4e4c-4cb2-a434-8f545c4631b2",
+              "name": "recipient_type",
+              "type": "string",
+              "value": "={{ $('Valider et normaliser le destinataire').first().json.recipient_type }}"
+            },
+            {
+              "id": "48a25cc9-42fa-4a88-9b8d-461adfce48ad",
+              "name": "evolution_response",
+              "type": "object",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ab512dc5-de94-446e-882c-61276c65f047",
+      "name": "Retour outil",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "b7e45959-c2ba-409f-8abe-886b5cc44564",
+      "name": "Reponse succes",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        224
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Envoyer WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Valider et normaliser le destinataire",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider et normaliser le destinataire": {
+      "main": [
+        [
+          {
+            "node": "Erreur de validation ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Erreur de validation ?": {
+      "main": [
+        [
+          {
+            "node": "Reponse erreur",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envoyer via Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoyer via Evolution API": {
+      "main": [
+        [
+          {
+            "node": "Retour outil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retour outil": {
+      "main": [
+        [
+          {
+            "node": "Reponse succes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "32aklGD3lGATTeJw",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-25T20:11:17.003Z",
+      "updatedAt": "2026-09-25T20:11:17.003Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "5c5a58ae-8be6-4f03-b21e-08027cad5b64",
+    "workflowId": "32aklGD3lGATTeJw",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-envoyer-whatsapp",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "5ecbcbd2-a231-434d-a43f-d544ff1b99e3",
+        "name": "Webhook - Envoyer WhatsApp",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -944,
+          128
+        ],
+        "webhookId": "dst1-envoyer-whatsapp"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "c0e804bd-306f-455c-a605-f913e54a1db9",
+                "name": "tool_name",
+                "type": "string",
+                "value": "envoyer_message_whatsapp"
+              },
+              {
+                "id": "3c29e461-2b78-41cc-a948-061f477eeb4d",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Envoie un message texte WhatsApp via Evolution API a un contact ou a un groupe. Pour un contact, fournir son numero de telephone (format francais ou international). Pour un groupe, fournir le remoteJid retourne par l'outil resoudre_groupe_whatsapp. Utilise cet outil uniquement apres confirmation explicite de l'utilisateur."
+              },
+              {
+                "id": "15b02a67-a721-4056-b321-ece9801c3fd3",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{\"recipient\":{\"type\":\"string\",\"description\":\"Destinataire WhatsApp. Pour un contact : numero francais ou international, par exemple 0609414700, +33609414700 ou 33609414700. Pour un groupe : remoteJid se terminant par @g.us, fourni par resoudre_groupe_whatsapp.\"},\"text\":{\"type\":\"string\",\"description\":\"Texte du message WhatsApp a envoyer.\"},\"delay\":{\"type\":\"integer\",\"description\":\"Delai avant envoi en millisecondes. Utiliser 0 par defaut.\",\"default\":0}},\"required\":[\"recipient\",\"text\"],\"additionalProperties\":false}"
+              },
+              {
+                "id": "bc9b7eb3-12b9-41a3-a994-74d6517571be",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "true"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "c0ac1fe2-5880-4c25-9a68-f939c4f45750",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -704,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const rawRecipient = String($json.recipient ?? '').trim();\nconst text = String($json.text ?? '').trim();\nconst delay = Number($json.delay ?? 0);\n\nif (!rawRecipient) {\n  return [{ json: { error: true, message: \"Le parametre 'recipient' est obligatoire.\" } }];\n}\nif (!text) {\n  return [{ json: { error: true, message: \"Le parametre 'text' est obligatoire et ne peut pas etre vide.\" } }];\n}\nif (!Number.isInteger(delay) || delay < 0) {\n  return [{ json: { error: true, message: \"Le parametre 'delay' doit etre un entier positif ou egal a 0.\" } }];\n}\n\nlet recipient;\nlet recipientType;\n\nif (rawRecipient.endsWith('@g.us')) {\n  recipient = rawRecipient;\n  recipientType = 'group';\n} else {\n  recipient = rawRecipient.replace(/\\D/g, '');\n  if (recipient.startsWith('00')) { recipient = recipient.slice(2); }\n  if (/^0\\d{9}$/.test(recipient)) { recipient = `33${recipient.slice(1)}`; }\n  if (!/^[1-9]\\d{7,14}$/.test(recipient)) {\n    return [{ json: { error: true, message: `Numero WhatsApp invalide apres normalisation : \"${rawRecipient}\". Exemple valide : 33609414700.` } }];\n  }\n  recipientType = 'contact';\n}\n\nreturn [{ json: { ...$json, recipient_original: rawRecipient, recipient, recipient_type: recipientType, text, delay } }];"
+        },
+        "id": "ab19c3f2-bab8-49c5-8602-2a80c2390d1f",
+        "name": "Valider et normaliser le destinataire",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -432,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{$json.error}}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "0250eb97-7252-4b3b-b5e5-d4660edeee5f",
+        "name": "Erreur de validation ?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -224,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"error\": $json.message } }}",
+          "options": {
+            "responseCode": 400
+          }
+        },
+        "id": "f47543d8-4f4a-46b4-8085-537169b566fb",
+        "name": "Reponse erreur",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $env.EVOLUTION_BASEURL + '/message/sendText/' + $env.EVOLUTION_INSTANCE }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $env.EVOLUTION_API_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ { number: $json.recipient, text: $json.text, delay: $json.delay } }}",
+          "options": {}
+        },
+        "id": "30ca28c9-0d3c-4d51-9ad5-2accf986bf02",
+        "name": "Envoyer via Evolution API",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          0,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "28cf179f-c808-42af-b5c3-0eb5d7b86f1c",
+                "name": "success",
+                "type": "boolean",
+                "value": true
+              },
+              {
+                "id": "24fdd034-a3bc-4eba-b778-4fae8ecd046c",
+                "name": "message",
+                "type": "string",
+                "value": "Message WhatsApp transmis a Evolution API."
+              },
+              {
+                "id": "a6dca09d-ca2f-4f6f-92d6-80143b641d01",
+                "name": "recipient",
+                "type": "string",
+                "value": "={{ $('Valider et normaliser le destinataire').first().json.recipient }}"
+              },
+              {
+                "id": "e58d4db7-4e4c-4cb2-a434-8f545c4631b2",
+                "name": "recipient_type",
+                "type": "string",
+                "value": "={{ $('Valider et normaliser le destinataire').first().json.recipient_type }}"
+              },
+              {
+                "id": "48a25cc9-42fa-4a88-9b8d-461adfce48ad",
+                "name": "evolution_response",
+                "type": "object",
+                "value": "={{ $json }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "ab512dc5-de94-446e-882c-61276c65f047",
+        "name": "Retour outil",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          224,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "b7e45959-c2ba-409f-8abe-886b5cc44564",
+        "name": "Reponse succes",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          448,
+          224
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Envoyer WhatsApp": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Valider et normaliser le destinataire",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valider et normaliser le destinataire": {
+        "main": [
+          [
+            {
+              "node": "Erreur de validation ?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Erreur de validation ?": {
+        "main": [
+          [
+            {
+              "node": "Reponse erreur",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Envoyer via Evolution API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Envoyer via Evolution API": {
+        "main": [
+          [
+            {
+              "node": "Retour outil",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Retour outil": {
+        "main": [
+          [
+            {
+              "node": "Reponse succes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 5c5a58ae",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T07:52:11.110Z",
+    "updatedAt": "2026-09-26T07:52:55.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 387,
+        "workflowId": "32aklGD3lGATTeJw",
+        "versionId": "5c5a58ae-8be6-4f03-b21e-08027cad5b64",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T07:52:55.449Z"
+      }
+    ]
+  }
+}

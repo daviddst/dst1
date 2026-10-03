@@ -1,0 +1,383 @@
+{
+  "id": "aMOXWoYsHVtyBN57",
+  "name": "Tool - Lister réponses automatiques WhatsApp",
+  "description": "",
+  "active": true,
+  "activeVersionId": "55c21019-43e9-42af-b13d-f75ef8d1e90c",
+  "createdAt": "2026-09-26T14:33:10.900Z",
+  "updatedAt": "2026-09-26T15:05:41.351Z",
+  "isArchived": false,
+  "versionId": "55c21019-43e9-42af-b13d-f75ef8d1e90c",
+  "versionCounter": 2,
+  "sourceWorkflowId": null,
+  "triggerCount": 1,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dst1-lister-reponses-automatiques-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "495e061c-d876-487e-9a4b-114120711782",
+      "name": "Webhook - Lister réponses automatiques",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "dst1-lister-reponses-automatiques-whatsapp"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b3e5f6a7-1001-4b01-a001-000000000002",
+              "name": "tool_name",
+              "type": "string",
+              "value": "lister_reponses_automatiques_whatsapp"
+            },
+            {
+              "id": "b3e5f6a7-1001-4b01-a001-000000000003",
+              "name": "tool_description",
+              "type": "string",
+              "value": "Liste les contacts dont la reponse automatique WhatsApp est actuellement activee. Cet outil est en lecture seule."
+            },
+            {
+              "id": "b3e5f6a7-1001-4b01-a001-000000000004",
+              "name": "tool_parameters",
+              "type": "string",
+              "value": "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}"
+            },
+            {
+              "id": "b3e5f6a7-1001-4b01-a001-000000000005",
+              "name": "require_confirmation",
+              "type": "string",
+              "value": "false"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "4d4da197-bacd-48bf-9fd2-4b5a89624dfa",
+      "name": "ToolSchema",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "n5Kf563nO7SENyir",
+          "mode": "list",
+          "cachedResultName": "whatsapp_reponses_auto",
+          "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/n5Kf563nO7SENyir"
+        }
+      },
+      "id": "e05b56d7-1de0-4c20-9e39-eb6b33b2283d",
+      "name": "Lire Data Table réponses automatiques",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all()\n  .map(item => item.json || {})\n  .filter(row => String(row.numero || '').trim() !== '');\n\nfunction isActive(value) {\n  // Data Table n8n retourne actuellement actif sous la forme \"1\"\n  if (value === true || value === 1) {\n    return true;\n  }\n\n  const normalized = String(value ?? '')\n    .trim()\n    .toLowerCase();\n\n  return [\n    'true',\n    '1',\n    'yes',\n    'oui',\n    'active',\n    'actif',\n  ].includes(normalized);\n}\n\nconst contacts = rows\n  .filter(row => isActive(row.actif))\n  .map(row => ({\n    numero: String(row.numero).trim(),\n    nom_contact: String(row.nom_contact || '').trim() || null,\n    actif: true,\n  }));\n\nreturn [{\n  json: {\n    success: true,\n    nombre_reponses_actives: contacts.length,\n    contacts,\n    message: contacts.length === 0\n      ? 'Aucune reponse automatique WhatsApp n est activee.'\n      : `${contacts.length} reponse(s) automatique(s) WhatsApp activee(s).`,\n  },\n}];"
+      },
+      "id": "a271793b-9ec5-46ec-a90e-3205c8640cea",
+      "name": "Filtrer réponses actives",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "69ef3f9c-737a-4288-940c-b906dcb3c36e",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Lister réponses automatiques": {
+      "main": [
+        [
+          {
+            "node": "ToolSchema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ToolSchema": {
+      "main": [
+        [
+          {
+            "node": "Lire Data Table réponses automatiques",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lire Data Table réponses automatiques": {
+      "main": [
+        [
+          {
+            "node": "Filtrer réponses actives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer réponses actives": {
+      "main": [
+        [
+          {
+            "node": "Réponse succès",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "meta": null,
+  "tags": [
+    {
+      "id": "18KYi7G55ilfzXmb",
+      "name": "dst1-tool",
+      "createdAt": "2026-09-21T08:44:36.544Z",
+      "updatedAt": "2026-09-21T08:44:36.544Z"
+    }
+  ],
+  "shared": [
+    {
+      "role": "workflow:owner",
+      "workflowId": "aMOXWoYsHVtyBN57",
+      "projectId": "YlPTF7Aota3PzMSC",
+      "project": {
+        "id": "YlPTF7Aota3PzMSC",
+        "name": "David DST <david@xinus.net>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-06T14:22:26.650Z",
+        "updatedAt": "2026-09-06T15:00:20.440Z"
+      },
+      "createdAt": "2026-09-26T14:33:10.901Z",
+      "updatedAt": "2026-09-26T14:33:10.901Z"
+    }
+  ],
+  "activeVersion": {
+    "versionId": "55c21019-43e9-42af-b13d-f75ef8d1e90c",
+    "workflowId": "aMOXWoYsHVtyBN57",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "dst1-lister-reponses-automatiques-whatsapp",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "495e061c-d876-487e-9a4b-114120711782",
+        "name": "Webhook - Lister réponses automatiques",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          0
+        ],
+        "webhookId": "dst1-lister-reponses-automatiques-whatsapp"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "b3e5f6a7-1001-4b01-a001-000000000002",
+                "name": "tool_name",
+                "type": "string",
+                "value": "lister_reponses_automatiques_whatsapp"
+              },
+              {
+                "id": "b3e5f6a7-1001-4b01-a001-000000000003",
+                "name": "tool_description",
+                "type": "string",
+                "value": "Liste les contacts dont la reponse automatique WhatsApp est actuellement activee. Cet outil est en lecture seule."
+              },
+              {
+                "id": "b3e5f6a7-1001-4b01-a001-000000000004",
+                "name": "tool_parameters",
+                "type": "string",
+                "value": "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}"
+              },
+              {
+                "id": "b3e5f6a7-1001-4b01-a001-000000000005",
+                "name": "require_confirmation",
+                "type": "string",
+                "value": "false"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "id": "4d4da197-bacd-48bf-9fd2-4b5a89624dfa",
+        "name": "ToolSchema",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          240,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "dataTableId": {
+            "__rl": true,
+            "value": "n5Kf563nO7SENyir",
+            "mode": "list",
+            "cachedResultName": "whatsapp_reponses_auto",
+            "cachedResultUrl": "/projects/YlPTF7Aota3PzMSC/datatables/n5Kf563nO7SENyir"
+          }
+        },
+        "id": "e05b56d7-1de0-4c20-9e39-eb6b33b2283d",
+        "name": "Lire Data Table réponses automatiques",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1,
+        "position": [
+          480,
+          0
+        ],
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const rows = $input.all()\n  .map(item => item.json || {})\n  .filter(row => String(row.numero || '').trim() !== '');\n\nfunction isActive(value) {\n  // Data Table n8n retourne actuellement actif sous la forme \"1\"\n  if (value === true || value === 1) {\n    return true;\n  }\n\n  const normalized = String(value ?? '')\n    .trim()\n    .toLowerCase();\n\n  return [\n    'true',\n    '1',\n    'yes',\n    'oui',\n    'active',\n    'actif',\n  ].includes(normalized);\n}\n\nconst contacts = rows\n  .filter(row => isActive(row.actif))\n  .map(row => ({\n    numero: String(row.numero).trim(),\n    nom_contact: String(row.nom_contact || '').trim() || null,\n    actif: true,\n  }));\n\nreturn [{\n  json: {\n    success: true,\n    nombre_reponses_actives: contacts.length,\n    contacts,\n    message: contacts.length === 0\n      ? 'Aucune reponse automatique WhatsApp n est activee.'\n      : `${contacts.length} reponse(s) automatique(s) WhatsApp activee(s).`,\n  },\n}];"
+        },
+        "id": "a271793b-9ec5-46ec-a90e-3205c8640cea",
+        "name": "Filtrer réponses actives",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          720,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json }}",
+          "options": {}
+        },
+        "id": "69ef3f9c-737a-4288-940c-b906dcb3c36e",
+        "name": "Réponse succès",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          960,
+          0
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook - Lister réponses automatiques": {
+        "main": [
+          [
+            {
+              "node": "ToolSchema",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "ToolSchema": {
+        "main": [
+          [
+            {
+              "node": "Lire Data Table réponses automatiques",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Lire Data Table réponses automatiques": {
+        "main": [
+          [
+            {
+              "node": "Filtrer réponses actives",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Filtrer réponses actives": {
+        "main": [
+          [
+            {
+              "node": "Réponse succès",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "David DST",
+    "name": "Version 55c21019",
+    "description": "",
+    "autosaved": true,
+    "createdAt": "2026-09-26T15:05:41.352Z",
+    "updatedAt": "2026-09-26T15:05:44.000Z",
+    "workflowPublishHistory": [
+      {
+        "id": 421,
+        "workflowId": "aMOXWoYsHVtyBN57",
+        "versionId": "55c21019-43e9-42af-b13d-f75ef8d1e90c",
+        "event": "activated",
+        "userId": "87cc7064-155a-4b3e-8813-6bf08b986761",
+        "createdAt": "2026-09-26T15:05:44.851Z"
+      }
+    ]
+  }
+}
