@@ -1,10 +1,14 @@
-.PHONY: validate checklist status
+.PHONY: validate diagnose logs deploy-agent deploy-web
 
-validate:
-	./scripts/validate.sh
+diagnose:
+	./scripts/deploy/diagnose.sh
 
-checklist:
-	./scripts/manual-copy-checklist.sh
+logs:
+	@test -n "$(SERVICE)" || (echo "Usage: make logs SERVICE=dst1-agent" && exit 1)
+	./scripts/deploy/diagnose.sh "$(SERVICE)"
 
-status:
-	git status --short
+deploy-agent:
+	./scripts/deploy/deploy.sh agent
+
+deploy-web:
+	./scripts/deploy/deploy.sh web
