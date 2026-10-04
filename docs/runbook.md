@@ -49,6 +49,27 @@ vocal. Ne pas tester l’envoi d’un message réel dans le cadre de la validati
 Le `active` de l’export est un instantané et peut différer de l’état n8n. La
 mise à jour du JSON Git ne désactive pas automatiquement le workflow runtime.
 
+## Dépannage : variable d'environnement absente dans n8n (ex. Pushbullet 500)
+
+Symptôme : le webhook `dst1-envoyer-pushbullet` renvoie 500 « Error in workflow »
+et les logs `dst1-n8n` montrent un 401 `invalid_access_token` de Pushbullet.
+
+Cause : `dst1-n8n` charge `/etc/docker/.env` via `env_file`, lu uniquement à la
+création du conteneur. Une variable ajoutée au `.env` (ex. `PUSHBULLET_APIKEY`)
+n'est pas visible tant que le conteneur n'est pas recréé ; un simple `restart`
+ne suffit pas.
+
+Vérification (sans afficher la valeur) :
+
+    docker exec dst1-n8n sh -c 'test -n "$PUSHBULLET_APIKEY" && echo defined || echo MISSING'
+
+Correction (validation explicite requise) :
+
+    docker compose -f /etc/docker/docker-compose.yml up -d dst1-n8n
+
+Rollback : aucun changement de compose n'est nécessaire ; retirer la variable du
+`.env` et recréer le conteneur.
+
 ## Rollback
 
 - Tool n8n nouvellement créé : le désactiver puis supprimer uniquement son ID ;
