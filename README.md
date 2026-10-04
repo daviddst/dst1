@@ -17,6 +17,8 @@ paramètres PostgreSQL de n8n y sont commentés : sauf configuration runtime
 différente, n8n utilise donc son stockage SQLite persistant dans son volume.
 Voir [l’architecture](docs/architecture.md) avant toute migration de base.
 
+Voir les [prérequis](docs/prerequisites.md) (services externes, API, variables).
+
 ## Validation locale
 
 Depuis la racine du dépôt :
